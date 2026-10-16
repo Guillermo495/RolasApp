@@ -1,0 +1,19 @@
+# Salidas de compilacion.
+bin/
+obj/
+
+# Entornos y editores.
+.vscode/
+.vs/
+*.user
+*.suo
+
+# Bases de datos generadas en tiempo de ejecución.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Archivo de KDE.
+.directory
+*~
