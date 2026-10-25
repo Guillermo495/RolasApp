@@ -10,7 +10,7 @@ public class Grupo
     public string? FechaFin { get; set; }
 
     // Lista en memoria para facilitar la gestión de la tabla 'in_group'
-    public List<Grupo> Miembros { get; set; } = new();
+    public List<Persona> Miembros { get; set; } = new();
 
     public Grupo() { }
 
