@@ -1,4 +1,4 @@
-namespace RolasApp.Modelo.Steve;
+namespace RolasApp.Modelo.Minero;
 
 using System;
 using System.Collections.Generic;
@@ -6,8 +6,8 @@ using System.IO;
 using RolasApp.Modelo.Entidades;
 using RolasApp.Modelo.Persistencia;
 
-// Escanea el sistema para extraer etiquetas ID3v2 y poblar la base de datos.
-public class Minero
+// Escanea el sistema para leer y escribir etiquetas ID3v2 y poblar la base de datos.
+public class Steve
 {
     // Valor por omision cuando una etiqueta ID3v2 viene vacia o no existe.
     private const string Desconocido = "Unknown";
@@ -20,8 +20,8 @@ public class Minero
     private readonly DaoAlbumes _daoAlbumes;
     private readonly DaoRolas _daoRolas;
 
-    // Inicializa el minero con la conexion compartida y los tres DAOs.
-    public Minero()
+    // Inicializa a Steve con la conexion compartida y los tres DAOs.
+    public Steve()
     {
         _bd = ConexionBaseDatos.Instancia;
         _daoInterpretes = new DaoInterpretes();
@@ -34,7 +34,7 @@ public class Minero
         Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
 
     // Recorre la ruta indicada, extrae las etiquetas ID3v2 y guarda las rolas en una transaccion.
-    public int Minar(string? rutaRaiz = null)
+    public int Minar(string? rutaRaiz = null, IProgress<int>? progreso = null)
     {
         string rutaBusqueda = string.IsNullOrWhiteSpace(rutaRaiz)
             ? ObtenerRutaMusica()
@@ -45,7 +45,9 @@ public class Minero
             return 0;
         }
 
-        IEnumerable<string> rutasMp3 = BuscarMp3(rutaBusqueda);
+        List<string> rutasMp3 = BuscarMp3(rutaBusqueda);
+        int totalRutas = rutasMp3.Count;
+        int procesadas = 0;
         int totalMinadas = 0;
 
         // Iniciamos una unica transaccion para insertar todo el lote en una sola operacion de disco.
@@ -58,6 +60,13 @@ public class Minero
                 if (ProcesarMp3(rutaMp3))
                 {
                     totalMinadas++;
+                }
+
+                procesadas++;
+                if (progreso != null && totalRutas > 0)
+                {
+                    int porcentaje = (procesadas * 100) / totalRutas;
+                    progreso.Report(porcentaje);
                 }
             }
 
@@ -72,8 +81,75 @@ public class Minero
         return totalMinadas;
     }
 
-    // Busca recursivamente todos los directorios MP3 ignorando aquellos sin permisos de lectura.
-    private static IEnumerable<string> BuscarMp3(string rutaRaiz)
+    // Actualiza las etiquetas ID3v2 directamente dentro del directorio MP3 fisico.
+    public bool ActualizarEtiquetasMp3(Rola rola)
+    {
+        if (string.IsNullOrWhiteSpace(rola.Ruta) || !File.Exists(rola.Ruta))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var mp3 = TagLib.File.Create(rola.Ruta);
+            TagLib.Tag etiquetas = mp3.Tag;
+
+            etiquetas.Title = LimpiarTexto(rola.Titulo);
+            etiquetas.Performers = [LimpiarTexto(rola.NombreInterprete)];
+            etiquetas.Album = LimpiarTexto(rola.NombreAlbum);
+            etiquetas.Genres = [LimpiarTexto(rola.Genero)];
+            etiquetas.Track = (uint)(rola.Pista >= 0 ? rola.Pista : 0);
+            etiquetas.Year = (uint)(rola.Anio > 0 ? rola.Anio : DateTime.Now.Year);
+
+            // Escribe los cambios de vuelta en las cabeceras del directorio MP3.
+            mp3.Save();
+            return true;
+        }
+        catch (TagLib.CorruptFileException)
+        {
+            // Si el MP3 esta corrupto, no es posible sobreescribir sus etiquetas.
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Si el directorio MP3 es de solo lectura, cancelamos la escritura sin abortar el programa.
+            return false;
+        }
+        catch (IOException)
+        {
+            // Si el directorio MP3 esta ocupado por otro proceso, omitimos la escritura.
+            return false;
+        }
+    }
+
+    // Extrae los bytes de la imagen de portada (APIC) incrustada en el directorio MP3.
+    public byte[]? ObtenerPortada(string? rutaMp3)
+    {
+        if (string.IsNullOrWhiteSpace(rutaMp3) || !File.Exists(rutaMp3))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var mp3 = TagLib.File.Create(rutaMp3);
+            TagLib.IPicture[] imagenes = mp3.Tag.Pictures;
+
+            if (imagenes != null && imagenes.Length > 0)
+            {
+                return imagenes[0].Data.Data;
+            }
+        }
+        catch
+        {
+            // Si falla la lectura de la imagen, regresamos null para mostrar una imagen por omision.
+        }
+
+        return null;
+    }
+
+    // Busca recursivamente todas las pistas MP3 ignorando los directorios sin permisos de lectura.
+    private static List<string> BuscarMp3(string rutaRaiz)
     {
         var opciones = new EnumerationOptions
         {
@@ -82,7 +158,7 @@ public class Minero
             MatchCasing = MatchCasing.CaseInsensitive,
         };
 
-        return Directory.EnumerateFiles(rutaRaiz, PatronMp3, opciones);
+        return new List<string>(Directory.EnumerateFiles(rutaRaiz, PatronMp3, opciones));
     }
 
     // Extrae las etiquetas ID3v2 de un MP3 y sincroniza su interprete, album y rola.
@@ -106,7 +182,7 @@ public class Minero
             int idInterprete = _daoInterpretes.ObtenerOCrearInterprete(nombreInterprete);
             int idAlbum = _daoAlbumes.ObtenerOCrearAlbum(rutaPadre, nombreAlbum, anio);
 
-            //Construir la entidad Rola y guardarla en la base de datos.
+            // Construir la entidad Rola y guardarla en la base de datos.
             var rola = new Rola
             {
                 IdInterprete = idInterprete,
@@ -125,14 +201,17 @@ public class Minero
         }
         catch (TagLib.CorruptFileException)
         {
+            // Si el encabezado MP3 esta corrupto, lo omitimos sin detener el minado general.
             return false;
         }
         catch (TagLib.UnsupportedFormatException)
         {
+            // Si el formato no es valido pese a la extension, continuamos con el siguiente.
             return false;
         }
         catch (IOException)
         {
+            // Si ocurre un error de lectura fisica, continuamos con el resto de la coleccion.
             return false;
         }
     }
