@@ -1,9 +1,208 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        xmlns:entidades="using:RolasApp.Modelo.Entidades"
         x:Class="RolasApp.MainWindow"
-        Title="RolasApp">
-    Welcome to Avalonia!
+        Title="RolasApp - Gestor de Colección Musical"
+        Width="1050" Height="640"
+        MinWidth="850" MinHeight="500"
+        Background="#1E1E2E"
+        Foreground="#CDD6F4">
+
+    <Grid RowDefinitions="Auto, *, Auto" Margin="16">
+
+        <!-- Buscador y boton de minado -->
+        <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,14">
+            <TextBox x:Name="CajaBusqueda"
+                     Grid.Column="0"
+                     PlaceholderText="Buscar por título, intérprete, álbum, género o año..."
+                     Background="#313244"
+                     Foreground="#CDD6F4"
+                     BorderBrush="#45475A"
+                     CornerRadius="6"
+                     Padding="10,8"
+                     TextChanged="AlCambiarBusqueda" />
+
+            <Button x:Name="BotonLimpiar"
+                    Grid.Column="1"
+                    Content="Limpiar"
+                    Margin="8,0,0,0"
+                    Padding="14,8"
+                    Background="#45475A"
+                    Foreground="#CDD6F4"
+                    CornerRadius="6"
+                    Click="AlPulsarLimpiar" />
+
+            <Button x:Name="BotonMinar"
+                    Grid.Column="2"
+                    Content="Minar Música (Steve)"
+                    Margin="8,0,0,0"
+                    Padding="16,8"
+                    Background="#89B4FA"
+                    Foreground="#11111B"
+                    FontWeight="Bold"
+                    CornerRadius="6"
+                    Click="AlPulsarMinar" />
+        </Grid>
+
+        <!-- Lista de rolas a la izquierda y editor a la derecha -->
+        <Grid Grid.Row="1" ColumnDefinitions="*, 320">
+
+            <!-- Tabla de rolas -->
+            <Border Grid.Column="0"
+                    Background="#181825"
+                    BorderBrush="#313244"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Margin="0,0,14,0"
+                    ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+
+                    <!-- Encabezados de las columnas -->
+                    <Border Grid.Row="0" Background="#313244" Padding="12,10">
+                        <Grid ColumnDefinitions="50, 2*, 1.5*, 1.5*, 65, 1*">
+                            <TextBlock Grid.Column="0" Text="#" FontWeight="Bold" Foreground="#A6ADC8" />
+                            <TextBlock Grid.Column="1" Text="Título" FontWeight="Bold" Foreground="#A6ADC8" />
+                            <TextBlock Grid.Column="2" Text="Intérprete" FontWeight="Bold" Foreground="#A6ADC8" />
+                            <TextBlock Grid.Column="3" Text="Álbum" FontWeight="Bold" Foreground="#A6ADC8" />
+                            <TextBlock Grid.Column="4" Text="Año" FontWeight="Bold" Foreground="#A6ADC8" />
+                            <TextBlock Grid.Column="5" Text="Género" FontWeight="Bold" Foreground="#A6ADC8" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Lista desplazable de rolas -->
+                    <ListBox x:Name="ListaRolas"
+                             Grid.Row="1"
+                             Background="Transparent"
+                             SelectionChanged="AlSeleccionarRola">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="entidades:Rola">
+                                <Grid ColumnDefinitions="50, 2*, 1.5*, 1.5*, 65, 1*" Margin="0,2">
+                                    <TextBlock Grid.Column="0" Text="{Binding Pista}" Foreground="#A6ADC8" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Titulo}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding NombreInterprete}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                    <TextBlock Grid.Column="3" Text="{Binding NombreAlbum}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Anio}" Foreground="#A6ADC8" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Genero}" Foreground="#89DCEB" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Portada APIC y editor de etiquetas -->
+            <Border Grid.Column="1"
+                    Background="#181825"
+                    BorderBrush="#313244"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="14">
+                <ScrollViewer>
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Detalles de la Rola"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   HorizontalAlignment="Center" />
+
+                        <!-- Recuadro para la portada frontal APIC -->
+                        <Border Width="170" Height="170"
+                                Background="#313244"
+                                CornerRadius="8"
+                                ClipToBounds="True"
+                                HorizontalAlignment="Center"
+                                Margin="0,4">
+                            <Grid>
+                                <TextBlock x:Name="TextoSinPortada"
+                                           Text="Sin Portada"
+                                           Foreground="#6C7086"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                <Image x:Name="ImagenPortada"
+                                       Stretch="UniformToFill" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Campos editables -->
+                        <TextBlock Text="Título:" FontSize="12" Foreground="#A6ADC8" />
+                        <TextBox x:Name="CampoTitulo" Background="#313244" Foreground="#CDD6F4" />
+
+                        <TextBlock Text="Intérprete:" FontSize="12" Foreground="#A6ADC8" />
+                        <TextBox x:Name="CampoInterprete" Background="#313244" Foreground="#CDD6F4" />
+
+                        <TextBlock Text="Álbum:" FontSize="12" Foreground="#A6ADC8" />
+                        <TextBox x:Name="CampoAlbum" Background="#313244" Foreground="#CDD6F4" />
+
+                        <Grid ColumnDefinitions="*, 10, *">
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Pista:" FontSize="12" Foreground="#A6ADC8" />
+                                <TextBox x:Name="CampoPista" Background="#313244" Foreground="#CDD6F4" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Año:" FontSize="12" Foreground="#A6ADC8" />
+                                <TextBox x:Name="CampoAnio" Background="#313244" Foreground="#CDD6F4" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Género:" FontSize="12" Foreground="#A6ADC8" />
+                        <TextBox x:Name="CampoGenero" Background="#313244" Foreground="#CDD6F4" />
+
+                        <TextBlock Text="Ruta del directorio MP3:" FontSize="12" Foreground="#A6ADC8" />
+                        <TextBox x:Name="CampoRuta"
+                                 IsReadOnly="True"
+                                 Background="#11111B"
+                                 Foreground="#6C7086"
+                                 FontSize="11" />
+
+                        <!-- Botones de accion sobre la rola seleccionada -->
+                        <Grid ColumnDefinitions="*, 8, *" Margin="0,8,0,0">
+                            <Button x:Name="BotonGuardar"
+                                    Grid.Column="0"
+                                    Content="Guardar"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Background="#A6E3A1"
+                                    Foreground="#11111B"
+                                    FontWeight="Bold"
+                                    CornerRadius="6"
+                                    IsEnabled="False"
+                                    Click="AlPulsarGuardar" />
+
+                            <Button x:Name="BotonEliminar"
+                                    Grid.Column="2"
+                                    Content="Eliminar"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Background="#F38BA8"
+                                    Foreground="#11111B"
+                                    FontWeight="Bold"
+                                    CornerRadius="6"
+                                    IsEnabled="False"
+                                    Click="AlPulsarEliminar" />
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Barra Inferior: Estado y barra de progreso -->
+        <Grid Grid.Row="2" ColumnDefinitions="*, 220" Margin="0,12,0,0">
+            <TextBlock x:Name="EtiquetaEstado"
+                       Grid.Column="0"
+                       Text="Listo."
+                       Foreground="#A6ADC8"
+                       VerticalAlignment="Center" />
+
+            <ProgressBar x:Name="BarraProgreso"
+                         Grid.Column="1"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="0"
+                         Height="14"
+                         CornerRadius="4"
+                         Foreground="#89B4FA"
+                         Background="#313244"
+                         IsVisible="False" />
+        </Grid>
+
+    </Grid>
 </Window>
