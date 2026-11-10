@@ -148,6 +148,33 @@ public class Steve
         return null;
     }
 
+    // Extrae los bytes de la fotografia del artista (APIC con tipo Artist o LeadArtist).
+    public byte[]? ObtenerFotoArtista(string? rutaMp3)
+    {
+        if (string.IsNullOrWhiteSpace(rutaMp3) || !File.Exists(rutaMp3))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var mp3 = TagLib.File.Create(rutaMp3);
+            foreach (TagLib.IPicture foto in mp3.Tag.Pictures)
+            {
+                if (foto.Type == TagLib.PictureType.Artist || foto.Type == TagLib.PictureType.LeadArtist)
+                {
+                    return foto.Data.Data;
+                }
+            }
+        }
+        catch
+        {
+            // En caso de error de lectura, regresa nulo para evitar fallos.
+        }
+
+        return null;
+    }
+
     // Busca recursivamente todas las pistas MP3 ignorando los directorios sin permisos de lectura.
     private static List<string> BuscarMp3(string rutaRaiz)
     {

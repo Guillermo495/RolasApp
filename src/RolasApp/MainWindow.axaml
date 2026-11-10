@@ -69,11 +69,40 @@
                         </Grid>
                     </Border>
 
-                    <!-- Lista desplazable de rolas -->
+                    <!-- Lista desplazable de rolas con efecto cebra tipo Finder -->
                     <ListBox x:Name="ListaRolas"
                              Grid.Row="1"
                              Background="Transparent"
                              SelectionChanged="AlSeleccionarRola">
+
+                        <ListBox.Styles>
+                            <!-- Ajuste general para que las filas se extiendan de borde a borde -->
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="12,6" />
+                                <Setter Property="CornerRadius" Value="0" />
+                            </Style>
+
+                            <!-- Fila impar: tono base oscuro -->
+                            <Style Selector="ListBoxItem:nth-child(2n+1)">
+                                <Setter Property="Background" Value="#181825" />
+                            </Style>
+
+                            <!-- Fila par: tono ligeramente más claro (banda Finder) -->
+                            <Style Selector="ListBoxItem:nth-child(2n)">
+                                <Setter Property="Background" Value="#222336" />
+                            </Style>
+
+                            <!-- Resaltado al pasar el cursor (hover) -->
+                            <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#313244" />
+                            </Style>
+
+                            <!-- Fila seleccionada activa -->
+                            <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                                <Setter Property="Background" Value="#45475A" />
+                            </Style>
+                        </ListBox.Styles>
+
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="entidades:Rola">
                                 <Grid ColumnDefinitions="50, 2*, 1.5*, 1.5*, 65, 1*" Margin="0,2">
