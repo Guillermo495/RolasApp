@@ -3,15 +3,15 @@
         xmlns:entidades="using:RolasApp.Modelo.Entidades"
         x:Class="RolasApp.MainWindow"
         Title="RolasApp - Gestor de Colección Musical"
-        Width="1050" Height="640"
-        MinWidth="850" MinHeight="500"
+        Width="1100" Height="660"
+        MinWidth="900" MinHeight="520"
         Background="#1E1E2E"
         Foreground="#CDD6F4">
 
     <Grid RowDefinitions="Auto, *, Auto" Margin="16">
 
-        <!-- Buscador y boton de minado -->
-        <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto" Margin="0,0,0,14">
+        <!-- Buscador y botones de minado -->
+        <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto, Auto" Margin="0,0,0,14">
             <TextBox x:Name="CajaBusqueda"
                      Grid.Column="0"
                      PlaceholderText="Buscar por título, intérprete, álbum, género o año..."
@@ -32,9 +32,20 @@
                     CornerRadius="6"
                     Click="AlPulsarLimpiar" />
 
-            <Button x:Name="BotonMinar"
+            <Button x:Name="BotonElegirDirectorio"
                     Grid.Column="2"
-                    Content="Minar Música (Steve)"
+                    Content="Elegir Directorio..."
+                    Margin="8,0,0,0"
+                    Padding="14,8"
+                    Background="#CBA6F7"
+                    Foreground="#11111B"
+                    FontWeight="Bold"
+                    CornerRadius="6"
+                    Click="AlPulsarElegirDirectorio" />
+
+            <Button x:Name="BotonMinar"
+                    Grid.Column="3"
+                    Content="Minar ~/Música"
                     Margin="8,0,0,0"
                     Padding="16,8"
                     Background="#89B4FA"
@@ -45,7 +56,7 @@
         </Grid>
 
         <!-- Lista de rolas a la izquierda y editor a la derecha -->
-        <Grid Grid.Row="1" ColumnDefinitions="*, 320">
+        <Grid Grid.Row="1" ColumnDefinitions="*, 340">
 
             <!-- Tabla de rolas -->
             <Border Grid.Column="0"
@@ -76,28 +87,23 @@
                              SelectionChanged="AlSeleccionarRola">
 
                         <ListBox.Styles>
-                            <!-- Ajuste general para que las filas se extiendan de borde a borde -->
                             <Style Selector="ListBoxItem">
                                 <Setter Property="Padding" Value="12,6" />
                                 <Setter Property="CornerRadius" Value="0" />
                             </Style>
 
-                            <!-- Fila impar: tono base oscuro -->
                             <Style Selector="ListBoxItem:nth-child(2n+1)">
                                 <Setter Property="Background" Value="#181825" />
                             </Style>
 
-                            <!-- Fila par: tono ligeramente más claro (banda Finder) -->
                             <Style Selector="ListBoxItem:nth-child(2n)">
                                 <Setter Property="Background" Value="#222336" />
                             </Style>
 
-                            <!-- Resaltado al pasar el cursor (hover) -->
                             <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
                                 <Setter Property="Background" Value="#313244" />
                             </Style>
 
-                            <!-- Fila seleccionada activa -->
                             <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
                                 <Setter Property="Background" Value="#45475A" />
                             </Style>
@@ -119,7 +125,7 @@
                 </Grid>
             </Border>
 
-            <!-- Portada APIC y editor de etiquetas -->
+            <!-- Visores APIC y editor de etiquetas -->
             <Border Grid.Column="1"
                     Background="#181825"
                     BorderBrush="#313244"
@@ -133,23 +139,54 @@
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center" />
 
-                        <!-- Recuadro para la portada frontal APIC -->
-                        <Border Width="170" Height="170"
-                                Background="#313244"
-                                CornerRadius="8"
-                                ClipToBounds="True"
-                                HorizontalAlignment="Center"
-                                Margin="0,4">
-                            <Grid>
-                                <TextBlock x:Name="TextoSinPortada"
-                                           Text="Sin Portada"
-                                           Foreground="#6C7086"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
-                                <Image x:Name="ImagenPortada"
-                                       Stretch="UniformToFill" />
-                            </Grid>
-                        </Border>
+                        <!-- Recuadros para Portada Frontal y Foto del Artista (APIC) -->
+                        <Grid ColumnDefinitions="*, 12, *" Margin="0,4">
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock Text="Portada"
+                                           FontSize="11"
+                                           Foreground="#A6ADC8"
+                                           HorizontalAlignment="Center" />
+                                <Border Width="135" Height="135"
+                                        Background="#313244"
+                                        CornerRadius="8"
+                                        ClipToBounds="True"
+                                        HorizontalAlignment="Center">
+                                    <Grid>
+                                        <TextBlock x:Name="TextoSinPortada"
+                                                   Text="Sin Portada"
+                                                   FontSize="11"
+                                                   Foreground="#6C7086"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                        <Image x:Name="ImagenPortada"
+                                               Stretch="UniformToFill" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Spacing="4">
+                                <TextBlock Text="Artista"
+                                           FontSize="11"
+                                           Foreground="#A6ADC8"
+                                           HorizontalAlignment="Center" />
+                                <Border Width="135" Height="135"
+                                        Background="#313244"
+                                        CornerRadius="8"
+                                        ClipToBounds="True"
+                                        HorizontalAlignment="Center">
+                                    <Grid>
+                                        <TextBlock x:Name="TextoSinArtista"
+                                                   Text="Sin Foto"
+                                                   FontSize="11"
+                                                   Foreground="#6C7086"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                        <Image x:Name="ImagenArtista"
+                                               Stretch="UniformToFill" />
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
 
                         <!-- Campos editables -->
                         <TextBlock Text="Título:" FontSize="12" Foreground="#A6ADC8" />
@@ -213,7 +250,7 @@
             </Border>
         </Grid>
 
-        <!-- Barra Inferior: Estado y barra de progreso -->
+        <!-- Estado y barra de progreso -->
         <Grid Grid.Row="2" ColumnDefinitions="*, 220" Margin="0,12,0,0">
             <TextBlock x:Name="EtiquetaEstado"
                        Grid.Column="0"

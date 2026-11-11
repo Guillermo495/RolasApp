@@ -3,9 +3,11 @@ namespace RolasApp;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using RolasApp.Controlador;
 using RolasApp.Modelo.Entidades;
 
@@ -47,13 +49,41 @@ public partial class MainWindow : Window
         CargarCatalogo();
     }
 
-    // Ejecuta el minado en segundo plano actualizando la barra de progreso.
+    // Abre el selector nativo del sistema para elegir cualquier directorio a minar.
+    private async void AlPulsarElegirDirectorio(object? sender, RoutedEventArgs e)
+    {
+        IReadOnlyList<IStorageFolder> seleccion = await StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions
+            {
+                Title = "Seleccionar directorio con musica MP3",
+                AllowMultiple = false,
+            });
+
+        if (seleccion.Count > 0)
+        {
+            string? rutaElegida = seleccion[0].TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(rutaElegida))
+            {
+                await EjecutarMinadoAsync(rutaElegida);
+            }
+        }
+    }
+
+    // Ejecuta el minado directamente sobre el directorio de musica predeterminado.
     private async void AlPulsarMinar(object? sender, RoutedEventArgs e)
     {
+        string rutaMusica = ObtenerDirectorioMusica();
+        await EjecutarMinadoAsync(rutaMusica);
+    }
+
+    // Coordina el minado asincrono y actualiza la barra de progreso en la interfaz.
+    private async Task EjecutarMinadoAsync(string rutaDirectorio)
+    {
         BotonMinar.IsEnabled = false;
+        BotonElegirDirectorio.IsEnabled = false;
         BarraProgreso.Value = 0;
         BarraProgreso.IsVisible = true;
-        EtiquetaEstado.Text = "Steve está minando el directorio de música...";
+        EtiquetaEstado.Text = $"Steve está minando en: {rutaDirectorio}...";
 
         var reportador = new Progress<int>(porcentaje =>
         {
@@ -63,11 +93,10 @@ public partial class MainWindow : Window
 
         try
         {
-            string rutaMusica = ObtenerDirectorioMusica();
-            int totalMinadas = await _controlador.MinarAsync(rutaMusica, reportador);
+            int totalMinadas = await _controlador.MinarAsync(rutaDirectorio, reportador);
 
             CargarCatalogo(CajaBusqueda.Text);
-            EtiquetaEstado.Text = $"Minado completado: {totalMinadas} pista(s) procesadas.";
+            EtiquetaEstado.Text = $"Minado completado en {rutaDirectorio}: {totalMinadas} pista(s) procesadas.";
         }
         catch (Exception ex)
         {
@@ -77,10 +106,11 @@ public partial class MainWindow : Window
         {
             BarraProgreso.IsVisible = false;
             BotonMinar.IsEnabled = true;
+            BotonElegirDirectorio.IsEnabled = true;
         }
     }
 
-    // Muestra los metadatos y la portada APIC cuando se selecciona una rola en la tabla.
+    // Muestra los metadatos y las imagenes APIC cuando se selecciona una rola en la tabla.
     private void AlSeleccionarRola(object? sender, SelectionChangedEventArgs e)
     {
         if (ListaRolas.SelectedItem is not Rola rola)
@@ -102,7 +132,7 @@ public partial class MainWindow : Window
         BotonGuardar.IsEnabled = true;
         BotonEliminar.IsEnabled = true;
 
-        MostrarPortada(rola);
+        MostrarImagenes(rola);
     }
 
     // Guarda las modificaciones en SQLite y sobrescribe las etiquetas ID3v2 del MP3.
@@ -150,30 +180,36 @@ public partial class MainWindow : Window
         EtiquetaEstado.Text = "Rola eliminada de la base de datos.";
     }
 
-    // Convierte los bytes de la portada APIC en un Bitmap de Avalonia.
-    private void MostrarPortada(Rola rola)
+    // Carga en la interfaz tanto la portada frontal como la fotografia del artista.
+    private void MostrarImagenes(Rola rola)
     {
-        byte[]? bytesPortada = _controlador.ObtenerPortada(rola);
-        if (bytesPortada != null && bytesPortada.Length > 0)
+        AsignarImagen(ImagenPortada, TextoSinPortada, _controlador.ObtenerPortada(rola));
+        AsignarImagen(ImagenArtista, TextoSinArtista, _controlador.ObtenerFotoArtista(rola));
+    }
+
+    // Convierte un arreglo de bytes APIC en un Bitmap y lo asigna al control Image indicado.
+    private static void AsignarImagen(Image controlImagen, TextBlock etiquetaVacia, byte[]? bytesImagen)
+    {
+        if (bytesImagen != null && bytesImagen.Length > 0)
         {
             try
             {
-                using var flujo = new MemoryStream(bytesPortada);
-                ImagenPortada.Source = new Bitmap(flujo);
-                TextoSinPortada.IsVisible = false;
+                using var flujo = new MemoryStream(bytesImagen);
+                controlImagen.Source = new Bitmap(flujo);
+                etiquetaVacia.IsVisible = false;
                 return;
             }
             catch
             {
-                // Si los bytes de la imagen no son validos, mostramos el recuadro vacio.
+                // Si los bytes no corresponden a una imagen valida, se muestra el texto alternativo.
             }
         }
 
-        ImagenPortada.Source = null;
-        TextoSinPortada.IsVisible = true;
+        controlImagen.Source = null;
+        etiquetaVacia.IsVisible = true;
     }
 
-    // Vacía los controles del panel derecho cuando no hay ninguna rola seleccionada.
+    // Vacia los controles del panel derecho cuando no hay ninguna rola seleccionada.
     private void LimpiarPanelDetalles()
     {
         _rolaSeleccionada = null;
@@ -186,6 +222,8 @@ public partial class MainWindow : Window
         CampoRuta.Text = string.Empty;
         ImagenPortada.Source = null;
         TextoSinPortada.IsVisible = true;
+        ImagenArtista.Source = null;
+        TextoSinArtista.IsVisible = true;
         BotonGuardar.IsEnabled = false;
         BotonEliminar.IsEnabled = false;
     }

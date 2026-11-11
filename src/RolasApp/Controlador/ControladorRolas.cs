@@ -101,6 +101,10 @@ public class ControladorRolas
     public byte[]? ObtenerPortada(Rola? rola) =>
         rola is null ? null : _steve.ObtenerPortada(rola.Ruta);
 
+    // Extrae los bytes de la fotografia del artista incrustada en el directorio MP3 de la rola.
+    public byte[]? ObtenerFotoArtista(Rola? rola) =>
+        rola is null ? null : _steve.ObtenerFotoArtista(rola.Ruta);
+
     // Evalua si una rola coincide con todos los terminos ingresados en la barra de busqueda.
     private static bool CumpleTodosLosTerminos(Rola rola, string[] terminos)
     {
