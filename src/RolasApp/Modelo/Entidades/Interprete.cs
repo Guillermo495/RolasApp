@@ -1,12 +1,11 @@
-using System;
-
 namespace RolasApp.Modelo.Entidades;
 
+// Representa a un interprete registrado en la tabla performers.
 public class Interprete
 {
     public int IdInterprete { get; set; }
     public TipoInterprete Tipo { get; set; } = TipoInterprete.Desconocido;
-    public string Nombre { get; set; } = "Unknow";
+    public string Nombre { get; set; } = "Unknown";
 
     public Interprete() { }
 
@@ -16,6 +15,6 @@ public class Interprete
         Tipo = tipo;
         Nombre = string.IsNullOrWhiteSpace(nombre) ? "Unknown" : nombre.Trim();
     }
-    public override string ToString() => Nombre;
 
+    public override string ToString() => Nombre;
 }

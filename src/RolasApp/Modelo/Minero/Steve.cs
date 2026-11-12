@@ -6,7 +6,7 @@ using System.IO;
 using RolasApp.Modelo.Entidades;
 using RolasApp.Modelo.Persistencia;
 
-// Escanea el sistema para leer y escribir etiquetas ID3v2 y poblar la base de datos.
+// Escanea el sistema para leer etiquetas ID3v2.4 y poblar la base de datos sin modificar los MP3.
 public class Steve
 {
     // Valor por omision cuando una etiqueta ID3v2 viene vacia o no existe.
@@ -81,47 +81,6 @@ public class Steve
         return totalMinadas;
     }
 
-    // Actualiza las etiquetas ID3v2 directamente dentro del directorio MP3 fisico.
-    public bool ActualizarEtiquetasMp3(Rola rola)
-    {
-        if (string.IsNullOrWhiteSpace(rola.Ruta) || !File.Exists(rola.Ruta))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var mp3 = TagLib.File.Create(rola.Ruta);
-            TagLib.Tag etiquetas = mp3.Tag;
-
-            etiquetas.Title = LimpiarTexto(rola.Titulo);
-            etiquetas.Performers = [LimpiarTexto(rola.NombreInterprete)];
-            etiquetas.Album = LimpiarTexto(rola.NombreAlbum);
-            etiquetas.Genres = [LimpiarTexto(rola.Genero)];
-            etiquetas.Track = (uint)(rola.Pista >= 0 ? rola.Pista : 0);
-            etiquetas.Year = (uint)(rola.Anio > 0 ? rola.Anio : DateTime.Now.Year);
-
-            // Escribe los cambios de vuelta en las cabeceras del directorio MP3.
-            mp3.Save();
-            return true;
-        }
-        catch (TagLib.CorruptFileException)
-        {
-            // Si el MP3 esta corrupto, no es posible sobreescribir sus etiquetas.
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Si el directorio MP3 es de solo lectura, cancelamos la escritura sin abortar el programa.
-            return false;
-        }
-        catch (IOException)
-        {
-            // Si el directorio MP3 esta ocupado por otro proceso, omitimos la escritura.
-            return false;
-        }
-    }
-
     // Extrae los bytes de la imagen de portada (APIC) incrustada en el directorio MP3.
     public byte[]? ObtenerPortada(string? rutaMp3)
     {
@@ -137,12 +96,20 @@ public class Steve
 
             if (imagenes != null && imagenes.Length > 0)
             {
+                foreach (TagLib.IPicture imagen in imagenes)
+                {
+                    if (imagen.Type == TagLib.PictureType.FrontCover)
+                    {
+                        return imagen.Data.Data;
+                    }
+                }
+
                 return imagenes[0].Data.Data;
             }
         }
         catch
         {
-            // Si falla la lectura de la imagen, regresamos null para mostrar una imagen por omision.
+            // Si falla la lectura de la imagen, regresamos null para mostrar el recuadro vacio.
         }
 
         return null;
@@ -209,19 +176,16 @@ public class Steve
             int idInterprete = _daoInterpretes.ObtenerOCrearInterprete(nombreInterprete);
             int idAlbum = _daoAlbumes.ObtenerOCrearAlbum(rutaPadre, nombreAlbum, anio);
 
-            // Construir la entidad Rola y guardarla en la base de datos.
-            var rola = new Rola
-            {
-                IdInterprete = idInterprete,
-                IdAlbum = idAlbum,
-                Ruta = rutaMp3,
-                Titulo = titulo,
-                Pista = pista,
-                Anio = anio,
-                Genero = genero,
-                NombreInterprete = nombreInterprete,
-                NombreAlbum = nombreAlbum,
-            };
+            // Construimos la entidad Rola aplicando el patron Builder (ConstructorRola).
+            Rola rola = new ConstructorRola()
+                .ConInterprete(idInterprete, nombreInterprete)
+                .ConAlbum(idAlbum, nombreAlbum)
+                .ConRuta(rutaMp3)
+                .ConTitulo(titulo)
+                .ConPista(pista)
+                .ConAnio(anio)
+                .ConGenero(genero)
+                .Construir();
 
             _daoRolas.GuardarRola(rola);
             return true;

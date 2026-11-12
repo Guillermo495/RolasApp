@@ -5,7 +5,7 @@ CREATE TABLE types (
 
 INSERT INTO types VALUES(0, 'Person');
 INSERT INTO types VALUES(1, 'Group');
-INSERT INTO types VALUES(2, 'Unknown');;
+INSERT INTO types VALUES(2, 'Unknown');
 
 CREATE TABLE performers (
   id_performer  INTEGER PRIMARY KEY,
@@ -33,7 +33,7 @@ CREATE TABLE in_group (
   id_person     INTEGER,
   id_group      INTEGER,
   PRIMARY KEY   (id_person, id_group),
-  FOREIGN KEY   (id_person) REFERENCES persons(id_person)
+  FOREIGN KEY   (id_person) REFERENCES persons(id_person),
   FOREIGN KEY   (id_group) REFERENCES groups(id_group)
 );
 
@@ -55,6 +55,6 @@ CREATE TABLE rolas (
   track         INTEGER,
   year          INTEGER,
   genre         TEXT,
-  FOREIGN KEY   (id_performer) REFERENCES performers(id_performer)
+  FOREIGN KEY   (id_performer) REFERENCES performers(id_performer),
   FOREIGN KEY   (id_album) REFERENCES albums(id_album)
 );
