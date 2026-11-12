@@ -41,6 +41,23 @@ public class ControladorRolas
     public Rola? ObtenerRolaPorId(int idRola) =>
         _daoRolas.ObtenerPorId(idRola);
 
+    // Devuelve un album especifico a partir de su identificador unico.
+    public Album? ObtenerAlbumPorId(int idAlbum) =>
+        _daoAlbumes.ObtenerPorId(idAlbum);
+
+    // Devuelve todos los albumes registrados en la base de datos.
+    public List<Album> ObtenerTodosLosAlbumes() =>
+        _daoAlbumes.ObtenerTodos();
+
+    // Actualiza directamente los datos de un album (nombre, anio, ruta) en la base de datos.
+    public void GuardarCambiosAlbum(Album album)
+    {
+        if (album.IdAlbum > 0)
+        {
+            _daoAlbumes.ActualizarAlbum(album);
+        }
+    }
+
     // Devuelve todas las rolas que pertenecen a un album especifico.
     public List<Rola> ObtenerRolasPorAlbum(int idAlbum) =>
         _daoRolas.ObtenerPorAlbum(idAlbum);
@@ -72,7 +89,7 @@ public class ControladorRolas
         return filtradas;
     }
 
-    // Actualiza la rola en la base de datos y sincroniza sus etiquetas ID3v2 en el directorio MP3.
+    // Actualiza la rola, su interprete y su album exclusivamente en SQLite sin tocar el MP3.
     public bool GuardarCambiosRola(Rola rola)
     {
         if (rola.IdRola <= 0)
@@ -82,15 +99,21 @@ public class ControladorRolas
 
         string rutaPadre = Path.GetDirectoryName(rola.Ruta) ?? string.Empty;
 
-        // Aseguramos que el interprete y el album existan y actualizamos sus llaves foraneas.
+        // Asegura que el interprete exista en performers y asignamos su llave foranea.
         rola.IdInterprete = _daoInterpretes.ObtenerOCrearInterprete(rola.NombreInterprete);
+
+        // Obtiene o crea el album y sincronizamos su anio en la tabla albums.
         rola.IdAlbum = _daoAlbumes.ObtenerOCrearAlbum(rutaPadre, rola.NombreAlbum, rola.Anio);
+        Album? albumActual = _daoAlbumes.ObtenerPorId(rola.IdAlbum);
+        if (albumActual != null && albumActual.Anio != rola.Anio)
+        {
+            albumActual.Anio = rola.Anio;
+            _daoAlbumes.ActualizarAlbum(albumActual);
+        }
 
-        // Guardamos los cambios en la tabla rolas de SQLite.
+        // Guarda los cambios en la tabla rolas de SQLite.
         _daoRolas.ActualizarRola(rola);
-
-        // Escribimos las nuevas etiquetas directamente en el directorio MP3 fisico.
-        return _steve.ActualizarEtiquetasMp3(rola);
+        return true;
     }
 
     // Elimina una rola del registro de la base de datos sin borrar el directorio MP3 fisico.

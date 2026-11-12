@@ -16,7 +16,7 @@ public class DaoInterpretes
     private const string ColumnasPersona = "id_person, stage_name, real_name, birth_date, death_date";
     private const string ColumnasGrupo = "id_group, name, start_date, end_date";
 
-    // Referencia a la conexion unica
+    // Referencia a la conexion unica.
     private readonly ConexionBaseDatos _bd = ConexionBaseDatos.Instancia;
 
     // Busca un interprete por nombre; si no existe, lo inserta como Unknown.
@@ -50,16 +50,33 @@ public class DaoInterpretes
     public List<Interprete> ObtenerTodos() =>
         Leer($"SELECT {ColumnasInterprete} FROM performers ORDER BY name;", MapearInterprete);
 
+    // Cambia el tipo del interprete a Desconocido conservando su nombre.
+    public void DefinirComoDesconocido(int idInterprete, string nombre)
+    {
+        string nombreLimpio = string.IsNullOrWhiteSpace(nombre) ? Desconocido : nombre.Trim();
+        ActualizarInterprete(idInterprete, TipoInterprete.Desconocido, nombreLimpio);
+    }
+
     // Cambia el tipo del interprete a Persona y guarda sus datos personales.
     public void DefinirComoPersona(int idInterprete, Persona persona)
     {
-        ActualizarInterprete(idInterprete, TipoInterprete.Persona, persona.NombreArtistico);
+        string nombreArtistico = string.IsNullOrWhiteSpace(persona.NombreArtistico)
+            ? Desconocido
+            : persona.NombreArtistico.Trim();
+
+        persona.NombreArtistico = nombreArtistico;
+        ActualizarInterprete(idInterprete, TipoInterprete.Persona, nombreArtistico);
         GuardarPersona(persona);
     }
 
-    // Inserta una persona o actualiza sus datos si el nombre artistico ya existe.
+    // Inserta una persona (incluyendo individuos sin pistas) o actualiza sus datos si ya existe.
     public int GuardarPersona(Persona persona)
     {
+        string artisticoLimpio = string.IsNullOrWhiteSpace(persona.NombreArtistico)
+            ? Desconocido
+            : persona.NombreArtistico.Trim();
+        persona.NombreArtistico = artisticoLimpio;
+
         (string, object?)[] parametros =
         [
             ("@artistico", persona.NombreArtistico),
@@ -68,11 +85,12 @@ public class DaoInterpretes
             ("@muerte", persona.FechaMuerte),
         ];
 
-        Persona? existente = ObtenerPersonaPorNombreArtistico(persona.NombreArtistico);
+        Persona? existente = persona.IdPersona > 0
+            ? ObtenerPersonaPorId(persona.IdPersona)
+            : ObtenerPersonaPorNombreArtistico(persona.NombreArtistico);
 
         if (existente != null)
         {
-            // Si ya existe, actualiza sus fechas y nombre real.
             Ejecutar(@"
                 UPDATE persons
                 SET stage_name = @artistico,
@@ -86,7 +104,6 @@ public class DaoInterpretes
         }
         else
         {
-            // Si es nueva, inserta y guarda el nuevo id generado.
             persona.IdPersona = Convert.ToInt32(Escalar(@"
                 INSERT INTO persons (stage_name, real_name, birth_date, death_date)
                 VALUES (@artistico, @real, @nacimiento, @muerte);
@@ -96,6 +113,13 @@ public class DaoInterpretes
 
         return persona.IdPersona;
     }
+
+    // Busca los datos de una persona por su identificador unico.
+    public Persona? ObtenerPersonaPorId(int idPersona) =>
+        LeerUno(
+            $"SELECT {ColumnasPersona} FROM persons WHERE id_person = @id LIMIT 1;",
+            MapearPersona,
+            ("@id", idPersona));
 
     // Busca los datos de una persona por su nombre artistico.
     public Persona? ObtenerPersonaPorNombreArtistico(string nombreArtistico) =>
@@ -111,13 +135,23 @@ public class DaoInterpretes
     // Cambia el tipo del interprete a Grupo y guarda los datos de la banda.
     public void DefinirComoGrupo(int idInterprete, Grupo grupo)
     {
-        ActualizarInterprete(idInterprete, TipoInterprete.Grupo, grupo.Nombre);
+        string nombreGrupo = string.IsNullOrWhiteSpace(grupo.Nombre)
+            ? Desconocido
+            : grupo.Nombre.Trim();
+
+        grupo.Nombre = nombreGrupo;
+        ActualizarInterprete(idInterprete, TipoInterprete.Grupo, nombreGrupo);
         GuardarGrupo(grupo);
     }
 
-    // Inserta un grupo o actualiza sus fechas si el nombre ya existe.
+    // Inserta un grupo o actualiza sus fechas si ya existe.
     public int GuardarGrupo(Grupo grupo)
     {
+        string nombreLimpio = string.IsNullOrWhiteSpace(grupo.Nombre)
+            ? Desconocido
+            : grupo.Nombre.Trim();
+        grupo.Nombre = nombreLimpio;
+
         (string, object?)[] parametros =
         [
             ("@nombre", grupo.Nombre),
@@ -125,7 +159,9 @@ public class DaoInterpretes
             ("@fin", grupo.FechaFin),
         ];
 
-        Grupo? existente = ObtenerGrupoPorNombre(grupo.Nombre);
+        Grupo? existente = grupo.IdGrupo > 0
+            ? ObtenerGrupoPorId(grupo.IdGrupo)
+            : ObtenerGrupoPorNombre(grupo.Nombre);
 
         if (existente != null)
         {
@@ -149,6 +185,22 @@ public class DaoInterpretes
         }
 
         return grupo.IdGrupo;
+    }
+
+    // Busca un grupo por su identificador y carga su lista de integrantes.
+    public Grupo? ObtenerGrupoPorId(int idGrupo)
+    {
+        Grupo? grupo = LeerUno(
+            $"SELECT {ColumnasGrupo} FROM groups WHERE id_group = @id LIMIT 1;",
+            MapearGrupo,
+            ("@id", idGrupo));
+
+        if (grupo != null)
+        {
+            grupo.Miembros = ObtenerMiembrosDeGrupo(grupo.IdGrupo);
+        }
+
+        return grupo;
     }
 
     // Busca un grupo por nombre y carga su lista de integrantes.
