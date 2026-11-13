@@ -1,4 +1,4 @@
-namespace RolasApp;
+namespace RolasApp.Vista;
 
 using System;
 using System.Collections.Generic;
@@ -10,8 +10,9 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using RolasApp.Controlador;
 using RolasApp.Modelo.Entidades;
+using RolasApp.Modelo.Minero;
 
-// Ventana principal que presenta el catalogo musical y el editor de etiquetas.
+// Ventana principal que presenta el catalogo musical y el editor de datos en SQLite.
 public partial class MainWindow : Window
 {
     private readonly ControladorRolas _controlador;
@@ -49,6 +50,14 @@ public partial class MainWindow : Window
         CargarCatalogo();
     }
 
+    // Abre la ventana secundaria para gestionar interpretes, personas y bandas.
+    private async void AlPulsarInterpretes(object? sender, RoutedEventArgs e)
+    {
+        var ventana = new VentanaInterpretes(_rolaSeleccionada?.NombreInterprete);
+        await ventana.ShowDialog(this);
+        CargarCatalogo(CajaBusqueda.Text);
+    }
+
     // Abre el selector nativo del sistema para elegir cualquier directorio a minar.
     private async void AlPulsarElegirDirectorio(object? sender, RoutedEventArgs e)
     {
@@ -69,10 +78,10 @@ public partial class MainWindow : Window
         }
     }
 
-    // Ejecuta el minado directamente sobre el directorio de musica predeterminado.
+    // Ejecuta el minado sobre el directorio de musica resuelto mediante el estandar XDG.
     private async void AlPulsarMinar(object? sender, RoutedEventArgs e)
     {
-        string rutaMusica = ObtenerDirectorioMusica();
+        string rutaMusica = Steve.ObtenerRutaMusica();
         await EjecutarMinadoAsync(rutaMusica);
     }
 
@@ -135,7 +144,7 @@ public partial class MainWindow : Window
         MostrarImagenes(rola);
     }
 
-    // Guarda las modificaciones en SQLite y sobrescribe las etiquetas ID3v2 del MP3.
+    // Guarda las modificaciones exclusivamente en la base de datos SQLite sin alterar el MP3.
     private void AlPulsarGuardar(object? sender, RoutedEventArgs e)
     {
         if (_rolaSeleccionada is null)
@@ -158,12 +167,9 @@ public partial class MainWindow : Window
             _rolaSeleccionada.Anio = anio;
         }
 
-        bool mp3Actualizado = _controlador.GuardarCambiosRola(_rolaSeleccionada);
+        _controlador.GuardarCambiosRola(_rolaSeleccionada);
         CargarCatalogo(CajaBusqueda.Text);
-
-        EtiquetaEstado.Text = mp3Actualizado
-            ? "Rola actualizada en la base de datos y en el directorio MP3."
-            : "Rola actualizada en la base de datos (no se pudo escribir en el MP3).";
+        EtiquetaEstado.Text = "Cambios guardados en la base de datos SQLite (directorio MP3 intacto).";
     }
 
     // Elimina la rola seleccionada de la base de datos y limpia el panel derecho.
@@ -226,22 +232,5 @@ public partial class MainWindow : Window
         TextoSinArtista.IsVisible = true;
         BotonGuardar.IsEnabled = false;
         BotonEliminar.IsEnabled = false;
-    }
-
-    // Resuelve la ruta del directorio de musica del usuario con o sin tilde.
-    private static string ObtenerDirectorioMusica()
-    {
-        string ruta = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Música");
-
-        if (!Directory.Exists(ruta))
-        {
-            ruta = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Musica");
-        }
-
-        return ruta;
     }
 }

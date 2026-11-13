@@ -1,17 +1,17 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:entidades="using:RolasApp.Modelo.Entidades"
-        x:Class="RolasApp.MainWindow"
+        x:Class="RolasApp.Vista.MainWindow"
         Title="RolasApp - Gestor de Colección Musical"
-        Width="1100" Height="660"
-        MinWidth="900" MinHeight="520"
+        Width="1120" Height="660"
+        MinWidth="920" MinHeight="520"
         Background="#1E1E2E"
         Foreground="#CDD6F4">
 
     <Grid RowDefinitions="Auto, *, Auto" Margin="16">
 
-        <!-- Buscador y botones de minado -->
-        <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto, Auto" Margin="0,0,0,14">
+        <!-- Buscador, gestion de interpretes y botones de minado -->
+        <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto, Auto, Auto" Margin="0,0,0,14">
             <TextBox x:Name="CajaBusqueda"
                      Grid.Column="0"
                      PlaceholderText="Buscar por título, intérprete, álbum, género o año..."
@@ -32,8 +32,19 @@
                     CornerRadius="6"
                     Click="AlPulsarLimpiar" />
 
-            <Button x:Name="BotonElegirDirectorio"
+            <Button x:Name="BotonInterpretes"
                     Grid.Column="2"
+                    Content="Intérpretes y Bandas..."
+                    Margin="8,0,0,0"
+                    Padding="14,8"
+                    Background="#F9E2AF"
+                    Foreground="#11111B"
+                    FontWeight="Bold"
+                    CornerRadius="6"
+                    Click="AlPulsarInterpretes" />
+
+            <Button x:Name="BotonElegirDirectorio"
+                    Grid.Column="3"
                     Content="Elegir Directorio..."
                     Margin="8,0,0,0"
                     Padding="14,8"
@@ -44,7 +55,7 @@
                     Click="AlPulsarElegirDirectorio" />
 
             <Button x:Name="BotonMinar"
-                    Grid.Column="3"
+                    Grid.Column="4"
                     Content="Minar ~/Música"
                     Margin="8,0,0,0"
                     Padding="16,8"
@@ -125,7 +136,7 @@
                 </Grid>
             </Border>
 
-            <!-- Visores APIC y editor de etiquetas -->
+            <!-- Visores APIC y editor de datos en SQLite -->
             <Border Grid.Column="1"
                     Background="#181825"
                     BorderBrush="#313244"
@@ -134,7 +145,7 @@
                     Padding="14">
                 <ScrollViewer>
                     <StackPanel Spacing="10">
-                        <TextBlock Text="Detalles de la Rola"
+                        <TextBlock Text="Detalles de la Rola y Álbum"
                                    FontSize="16"
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center" />
@@ -188,7 +199,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Campos editables -->
+                        <!-- Campos editables en la base de datos -->
                         <TextBlock Text="Título:" FontSize="12" Foreground="#A6ADC8" />
                         <TextBox x:Name="CampoTitulo" Background="#313244" Foreground="#CDD6F4" />
 
@@ -204,7 +215,7 @@
                                 <TextBox x:Name="CampoPista" Background="#313244" Foreground="#CDD6F4" />
                             </StackPanel>
                             <StackPanel Grid.Column="2" Spacing="4">
-                                <TextBlock Text="Año:" FontSize="12" Foreground="#A6ADC8" />
+                                <TextBlock Text="Año (Pista / Álbum):" FontSize="12" Foreground="#A6ADC8" />
                                 <TextBox x:Name="CampoAnio" Background="#313244" Foreground="#CDD6F4" />
                             </StackPanel>
                         </Grid>
@@ -223,7 +234,7 @@
                         <Grid ColumnDefinitions="*, 8, *" Margin="0,8,0,0">
                             <Button x:Name="BotonGuardar"
                                     Grid.Column="0"
-                                    Content="Guardar"
+                                    Content="Guardar en BD"
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Center"
                                     Background="#A6E3A1"

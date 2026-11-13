@@ -1,0 +1,284 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:entidades="using:RolasApp.Modelo.Entidades"
+        x:Class="RolasApp.Vista.VentanaInterpretes"
+        Title="RolasApp - Intérpretes, Personas y Bandas"
+        Width="980" Height="640"
+        MinWidth="860" MinHeight="540"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E2E"
+        Foreground="#CDD6F4">
+
+    <Grid RowDefinitions="*, Auto" Margin="16">
+
+        <!-- Cuerpo principal: Lista de interpretes a la izquierda y paneles de gestion a la derecha -->
+        <Grid Grid.Row="0" ColumnDefinitions="300, *">
+
+            <!-- Panel Izquierdo: Lista de interpretes en la tabla performers -->
+            <Border Grid.Column="0"
+                    Background="#181825"
+                    BorderBrush="#313244"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Margin="0,0,14,0"
+                    ClipToBounds="True">
+                <Grid RowDefinitions="Auto, *">
+                    <Border Grid.Row="0" Background="#313244" Padding="12,10">
+                        <TextBlock Text="Intérpretes de Pistas (performers)" FontWeight="Bold" Foreground="#A6ADC8" />
+                    </Border>
+
+                    <ListBox x:Name="ListaInterpretes"
+                             Grid.Row="1"
+                             Background="Transparent"
+                             SelectionChanged="AlSeleccionarInterprete">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="entidades:Interprete">
+                                <Grid ColumnDefinitions="*, Auto" Margin="4,2">
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding Nombre}"
+                                               FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Tipo}"
+                                               FontSize="11"
+                                               Foreground="#89B4FA"
+                                               Margin="8,0,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- Panel Derecho: Clasificacion de interprete y alta de individuos independientes -->
+            <Border Grid.Column="1"
+                    Background="#181825"
+                    BorderBrush="#313244"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16">
+                <ScrollViewer>
+                    <StackPanel Spacing="14">
+
+                        <!-- SECCION 1: Clasificacion y edicion del interprete seleccionado -->
+                        <TextBlock Text="1. Definir y Editar Intérprete Seleccionado"
+                                   FontSize="16"
+                                   FontWeight="Bold" />
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Tipo de intérprete (Individuo / Banda / Desconocido):" FontSize="12" Foreground="#A6ADC8" />
+                            <ComboBox x:Name="ComboTipo"
+                                      HorizontalAlignment="Stretch"
+                                      Background="#313244"
+                                      Foreground="#CDD6F4"
+                                      IsEnabled="False"
+                                      SelectionChanged="AlCambiarTipo">
+                                <ComboBoxItem Content="Persona (Individuo)" />
+                                <ComboBoxItem Content="Grupo (Banda musical)" />
+                                <ComboBoxItem Content="Desconocido (Unknown)" />
+                            </ComboBox>
+                        </StackPanel>
+
+                        <Border x:Name="AvisoDesconocido"
+                                Background="#313244"
+                                CornerRadius="6"
+                                Padding="12"
+                                IsVisible="True">
+                            <TextBlock Text="Selecciona un intérprete a la izquierda y cambia su tipo a 'Persona' o 'Grupo' para editar sus detalles o administrar los miembros de la banda."
+                                       TextWrapping="Wrap"
+                                       FontSize="12"
+                                       Foreground="#A6ADC8" />
+                        </Border>
+
+                        <!-- Subpanel: Detalles cuando el interprete es PERSONA -->
+                        <Border x:Name="PanelPersona"
+                                Background="#11111B"
+                                CornerRadius="8"
+                                Padding="12"
+                                IsVisible="False">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Detalles del Individuo (Persona)" FontWeight="Bold" Foreground="#A6E3A1" />
+
+                                <Grid ColumnDefinitions="*, 12, *">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Nombre artístico:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoNombreArtistico" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Nombre real:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoNombreReal" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*, 12, *">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Fecha de nacimiento:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoFechaNacimiento" PlaceholderText="AAAA-MM-DD" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Fecha de fallecimiento:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoFechaFallecimiento" PlaceholderText="Opcional" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button Content="Guardar Detalles de Persona"
+                                        Margin="0,6,0,0"
+                                        Padding="14,8"
+                                        Background="#A6E3A1"
+                                        Foreground="#11111B"
+                                        FontWeight="Bold"
+                                        CornerRadius="6"
+                                        Click="AlPulsarGuardarPersona" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Subpanel: Detalles cuando el interprete es GRUPO + Miembros -->
+                        <Border x:Name="PanelGrupo"
+                                Background="#11111B"
+                                CornerRadius="8"
+                                Padding="12"
+                                IsVisible="False">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Detalles de la Banda (Grupo)" FontWeight="Bold" Foreground="#CBA6F7" />
+
+                                <TextBlock Text="Nombre de la banda:" FontSize="12" Foreground="#A6ADC8" />
+                                <TextBox x:Name="CampoNombreGrupo" Background="#313244" Foreground="#CDD6F4" />
+
+                                <Grid ColumnDefinitions="*, 12, *">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Fecha de inicio:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoFechaInicio" PlaceholderText="Ej. 1965-01-01" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Fecha de fin:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="CampoFechaFin" PlaceholderText="Opcional" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button Content="Guardar Detalles de la Banda"
+                                        Padding="14,8"
+                                        Background="#CBA6F7"
+                                        Foreground="#11111B"
+                                        FontWeight="Bold"
+                                        CornerRadius="6"
+                                        Click="AlPulsarGuardarGrupo" />
+
+                                <!-- Administracion de integrantes (in_group) -->
+                                <Border Background="#181825" CornerRadius="6" Margin="0,4,0,0" Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Integrantes de la Banda (in_group)" FontSize="13" FontWeight="Bold" Foreground="#89DCEB" />
+
+                                        <Grid ColumnDefinitions="*, Auto">
+                                            <ComboBox x:Name="ComboPersonasDisponibles"
+                                                      Grid.Column="0"
+                                                      HorizontalAlignment="Stretch"
+                                                      Background="#313244"
+                                                      Foreground="#CDD6F4" />
+                                            <Button Grid.Column="1"
+                                                    Content="Agregar a la Banda"
+                                                    Margin="8,0,0,0"
+                                                    Padding="12,6"
+                                                    Background="#89B4FA"
+                                                    Foreground="#11111B"
+                                                    FontWeight="Bold"
+                                                    CornerRadius="6"
+                                                    Click="AlPulsarAgregarMiembro" />
+                                        </Grid>
+
+                                        <ListBox x:Name="ListaMiembros" Height="95" Background="#11111B">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate x:DataType="entidades:Persona">
+                                                    <TextBlock Text="{Binding NombreArtistico}" />
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <Button Content="Quitar integrante seleccionado"
+                                                HorizontalAlignment="Right"
+                                                Padding="10,5"
+                                                Background="#F38BA8"
+                                                Foreground="#11111B"
+                                                FontSize="11"
+                                                FontWeight="Bold"
+                                                CornerRadius="6"
+                                                Click="AlPulsarQuitarMiembro" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- SECCION 2: Dar de alta individuos que no interpreten ninguna pista -->
+                        <Border Background="#11111B"
+                                BorderBrush="#313244"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Margin="0,6,0,0"
+                                Padding="12">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="2. Dar de Alta Individuo Independiente (sin pistas propias)"
+                                           FontSize="14"
+                                           FontWeight="Bold"
+                                           Foreground="#F9E2AF" />
+                                <TextBlock Text="Registra músicos en la tabla 'persons' para poder agregarlos como integrantes de cualquier banda."
+                                           FontSize="11"
+                                           Foreground="#A6ADC8"
+                                           TextWrapping="Wrap" />
+
+                                <Grid ColumnDefinitions="*, 10, *">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Nombre artístico:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="NuevoArtistico" PlaceholderText="Ej. Ringo Starr" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Nombre real:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="NuevoReal" PlaceholderText="Ej. Richard Starkey" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*, 10, *">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="Fecha de nacimiento:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="NuevoNacimiento" PlaceholderText="Ej. 1940-07-07" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="4">
+                                        <TextBlock Text="Fecha de fallecimiento:" FontSize="12" Foreground="#A6ADC8" />
+                                        <TextBox x:Name="NuevoMuerte" PlaceholderText="Opcional" Background="#313244" Foreground="#CDD6F4" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button Content="Dar de Alta Individuo"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,4,0,0"
+                                        Padding="14,7"
+                                        Background="#F9E2AF"
+                                        Foreground="#11111B"
+                                        FontWeight="Bold"
+                                        CornerRadius="6"
+                                        Click="AlPulsarAltaIndividuo" />
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Barra inferior de estado -->
+        <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="0,12,0,0">
+            <TextBlock x:Name="EtiquetaEstadoInterpretes"
+                       Grid.Column="0"
+                       Text="Listo."
+                       Foreground="#A6ADC8"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="1"
+                    Content="Cerrar"
+                    Padding="18,7"
+                    Background="#45475A"
+                    Foreground="#CDD6F4"
+                    CornerRadius="6"
+                    Click="AlPulsarCerrar" />
+        </Grid>
+
+    </Grid>
+</Window>
