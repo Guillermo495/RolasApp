@@ -1,0 +1,734 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{2em}
+
+\setlist{nosep,leftmargin=1.4em}
+
+\pagestyle{plain}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+\newcommand{\archivo}[1]{\texttt{\detokenize{#1}}}
+
+\newcommand{\crc}[3]{%
+    \fbox{%
+        \begin{minipage}[t]{.445\textwidth}
+            \small
+            \textbf{#1}
+
+            \textbf{Responsabilidades}
+
+            #2
+
+            \textbf{Colaboradores}
+
+            #3
+        \end{minipage}%
+    }%
+}
+
+\tikzset{
+    modulo/.style={
+        draw,
+        align=center,
+        font=\small,
+        minimum height=1cm,
+        text width=4cm
+    },
+    flecha/.style={
+        -{Stealth[length=2mm]}
+    },
+    etiqueta/.style={
+        font=\scriptsize,
+        fill=white,
+        inner sep=2pt
+    }
+}
+
+\begin{document}
+
+\begin{center}
+    \textbf{Universidad Nacional Autónoma de México}\\
+    Facultad de Ciencias
+
+    \textbf{Reporte de Modelado y Programación}\\
+    Base de datos musical con interfaz gráfica en C\# y Avalonia UI (RolasApp)
+
+    Guillermo Ricardo Gómez Gómez
+\end{center}
+
+\section{Resumen}
+
+Desarrollé \textbf{RolasApp}, una aplicación de escritorio para construir y
+administrar una base de datos musical a partir de directorios MP3 con
+etiquetas ID3v2.4, utilizando C\# (\archivo{net10.0}), Avalonia UI, SQLite
+y TagLibSharp. El proyecto tuvo como propósito integrar el modelado
+relacional con una interfaz gráfica multiplataforma siguiendo la
+arquitectura Modelo--Vista--Controlador (MVC). La principal dificultad
+de diseño consistió en equilibrar el modelado inicial pensado en cuaderno
+con una estructura práctica y mantenible, evitando capas redundantes y
+garantizando que ninguna modificación alterara los directorios MP3 físicos
+en disco. Para resolverlo, separé la persistencia en tres objetos de
+acceso a datos (DAO), encapsulé el escaneo recursivo y la lectura de
+metadatos en un minero dedicado (\archivo{Steve}) y dividí la interfaz en
+dos ventanas especializadas. Como resultado, la aplicación mina colecciones
+completas en segundo plano, muestra portadas y fotografías de artistas
+incrustadas, permite filtrar pistas y gestiona tanto solistas como bandas
+musicales con sus respectivos integrantes.
+
+\section{Introducción}
+
+El objetivo del segundo proyecto de la materia fue desarrollar un
+sistema capaz de poblar automáticamente una base de datos relacional
+a partir del recorrido de un directorio con música en formato MP3 y
+ofrecer una interfaz gráfica para consultar y editar dicha información.
+A diferencia del primer proyecto, donde trabajé con sockets en C y un
+cliente de consola en C\#, en esta ocasión me enfoqué por completo en el
+ecosistema de .NET sobre Linux, incorporando bibliotecas externas para
+el acceso a bases de datos embebidas, la lectura de cabeceras binarias
+ID3v2.4 y la construcción de ventanas gráficas nativas.
+
+Aunque ya contaba con experiencia previa trabajando con C\# en consola,
+desarrollar una aplicación con interfaz gráfica en Avalonia UI implicó
+aprender el enlace de datos (\textit{data binding}), la separación entre
+la definición declarativa en XAML y la lógica de eventos en C\#, así como
+la ejecución de tareas pesadas en hilos secundarios para evitar que la
+ventana dejara de responder durante el escaneo de directorios grandes.
+Asimismo, tuve que respetar los lineamientos del estándar XDG de Linux
+para ubicar la base de datos en \archivo{~/.local/share/RolasApp/rolas.db}
+y resolver la ruta predeterminada de música del usuario sin depender de
+nombres de carpetas fijos.
+
+La documentación técnica fue un apoyo constante durante todo el proceso.
+Consulté la documentación oficial de Avalonia UI para configurar estilos
+de listas, selectores nativos de carpetas mediante \archivo{StorageProvider}
+y ventanas modales; la guía de \archivo{Microsoft.Data.Sqlite} para
+manejar conexiones, consultas parametrizadas y transacciones ACID; los
+ejemplos de TagLibSharp para extraer etiquetas ID3v2.4 y marcos gráficos
+\archivo{APIC}; y la especificación oficial de ID3v2.4 para verificar el
+significado de cada identificador de trama \cite{avalonia,sqlite-ms,taglib,id3v24}.
+
+Al comenzar el desarrollo, cometí el error de implementar escritura de
+regreso sobre las etiquetas de los directorios MP3 cada vez que el usuario
+guardaba un cambio en la interfaz. Al revisar con detenimiento los
+requerimientos del proyecto, me di cuenta que los directorios MP3 debían
+permanecer estrictamente intactos y que toda edición debía ocurrir
+únicamente dentro de SQLite. Arreglar esto, junto con acomodar mejor
+las ventanas y completar el manejo de personas y bandas, fue lo que hizo
+que el proyecto pasara de ser un primer avance funcional a cumplir bien
+con lo que pedía la entrega.
+
+\section{Análisis y diseño}
+
+\subsection{Del planteamiento inicial a una arquitectura MVC}
+
+Antes de escribir código, tracé en cuaderno un diagrama general de
+clases y paquetes dividido en tres columnas: \archivo{Vista},
+\archivo{Modelo} y \archivo{Controlador}. En ese diseño inicial había
+contemplado cuatro elementos que después decidí replantear: una carpeta
+intermedia \archivo{Vista/Contratos} con interfaces para desacoplar
+Avalonia de los controladores, un subdirectorio \archivo{Modelo/Compilador}
+destinado a realizar análisis léxico y semántico de consultas para
+traducirlas a SQL, y un tercer controlador llamado \archivo{C. Reproductor}
+para la reproducción de audio.
+
+Cuando comencé a trasladar ese diagrama al repositorio de .NET, creé las
+carpetas vacías \archivo{Vista/Contratos} y \archivo{Modelo/Compilador}
+mientras avanzaba primero con las entidades, la conexión a SQLite y el
+minero. Pronto noté que mantener carpetas vacías y diseñar un analizador
+léxico propio para búsquedas sencillas y sobre todo interfaces de contrato
+para solo dos ventanas añadía complejidad al proyecto y no podria concluirlo
+en tiempo y forma. Además, tanto el compilador de consultas como el reproductor
+eran componentes opcionales en la especificación.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \node[modulo,text width=4.2cm] (vista) at (-4.9,0) {
+        \textbf{Vista (UI)}\\
+        Ventana Principal\\
+        Editar Grupo / Miembros\\
+        \textit{Contratos (interfaces)}
+    };
+
+    \node[modulo,text width=4.4cm] (ctrl) at (0,0) {
+        \textbf{Controlador}\\
+        Cont. Principal\\
+        C. Intérpretes\\
+        \textit{C. Reproductor (opcional)}
+    };
+
+    \node[modulo,text width=4.4cm] (mod) at (4.9,0) {
+        \textbf{Modelo}\\
+        Minero (\archivo{Steve})\\
+        Entidades y DAOs\\
+        \textit{Compilador SQL (opcional)}
+    };
+
+    \draw[flecha,<->] (vista)--(ctrl);
+    \draw[flecha,<->] (ctrl)--(mod);
+\end{tikzpicture}
+\caption{Planteamiento inicial de la arquitectura antes de depurar módulos opcionales y contratos.}
+\end{figure}
+
+Decidí entonces simplificar el diseño, eliminé las carpetas vacías,
+sustituí el compilador léxico por un motor de filtrado en memoria
+dentro de \archivo{ControladorRolas} capaz de interpretar prefijos
+como \archivo{artista:}, \archivo{album:} o \archivo{año:} sin que
+el usuario escriba SQL, y concentré el esfuerzo en las dos partes
+centrales del sistema: el catálogo de pistas y la administración
+de intérpretes, individuos y bandas.
+
+\subsection{Organización final del proyecto}
+
+Tras la refactorización y la reorganización de las ventanas dentro del
+espacio de nombres \archivo{RolasApp.Vista}, la estructura final del
+proyecto quedó dividida de forma simétrica en tres capas bien
+delimitadas. La capa de \archivo{Vista} contiene exclusivamente las
+definiciones XAML y el código subyacente de
+\archivo{MainWindow} y \archivo{VentanaInterpretes}. La capa de
+\archivo{Controlador} agrupa a \archivo{ControladorRolas} y
+\archivo{ControladorInterpretes}, encargados de coordinar las
+validaciones, las búsquedas y las llamadas a la persistencia. Finalmente,
+la capa de \archivo{Modelo} reúne las entidades del dominio, los tres
+DAO sobre \archivo{ConexionBaseDatos} y el minero \archivo{Steve}.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \node[modulo,text width=5.2cm] (mw) at (-3.4,0) {
+        \textbf{«vista» MainWindow}\\
+        Catálogo, buscador y edición en BD
+    };
+
+    \node[modulo,text width=5.2cm] (vi) at (3.4,0) {
+        \textbf{«vista» VentanaInterpretes}\\
+        Personas, bandas y miembros
+    };
+
+    \node[modulo,text width=5.2cm] (cr) at (-3.4,-2.2) {
+        \textbf{«controlador» ControladorRolas}\\
+        Minado asíncrono, filtrado y CRUD
+    };
+
+    \node[modulo,text width=5.2cm] (ci) at (3.4,-2.2) {
+        \textbf{«controlador» ControladorInterpretes}\\
+        Clasificación y relación \archivo{in_group}
+    };
+
+    \node[modulo,text width=4.0cm] (st) at (-4.8,-4.5) {
+        \textbf{«minero» Steve}\\
+        TagLibSharp (ID3v2.4 / APIC)
+    };
+
+    \node[modulo,text width=4.2cm] (daos) at (0,-4.5) {
+        \textbf{«persistencia» DAOs}\\
+        \archivo{DaoRolas}, \archivo{DaoAlbumes},\\
+        \archivo{DaoInterpretes}
+    };
+
+    \node[modulo,text width=4.0cm] (ent) at (4.8,-4.5) {
+        \textbf{«modelo» Entidades}\\
+        \archivo{Rola}, \archivo{Album}, \archivo{Interprete},\\
+        \archivo{Persona}, \archivo{Grupo}
+    };
+
+    \node[modulo,text width=6.4cm] (bd) at (0,-6.7) {
+        \textbf{«singleton» ConexionBaseDatos / SQLite}\\
+        \archivo{~/.local/share/RolasApp/rolas.db}
+    };
+
+    \draw[flecha] (mw)--(cr);
+    \draw[flecha] (mw)--node[etiqueta,above]{abre diálogo}(vi);
+    \draw[flecha] (vi)--(ci);
+    \draw[flecha] (cr)--(st);
+    \draw[flecha] (cr)--(daos);
+    \draw[flecha] (ci)--(daos);
+    \draw[flecha] (st)--(daos);
+    \draw[flecha] (daos)--(ent);
+    \draw[flecha] (daos)--(bd);
+\end{tikzpicture}
+\caption{Organización definitiva de las capas MVC en \textbf{RolasApp}.}
+\end{figure}
+
+En la siguiente tabla se resumen las principales decisiones de diseño que
+tomé durante el desarrollo y la justificación de cada una:
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}p{4.0cm}X@{}}
+    \toprule
+    Decisión & Motivo \\
+    \midrule
+
+    Eliminación de contratos XAML &
+    Para un proyecto de dos ventanas con entrega acotada, vincular las
+    vistas directamente con los controladores evitó duplicar firmas de
+    métodos sin perder la separación de capas MVC. \\
+
+    Búsqueda por prefijos en memoria &
+    Permite combinar filtros como \archivo{artista:Queen año:1975} o
+    texto libre en tiempo real sin necesidad de construir un analizador
+    léxico ni exponer SQL al usuario. \\
+
+    Tabla de catálogo estilo Finder &
+    El uso de filas alternadas (\textit{zebra striping}) y columnas
+    alineadas mejora la legibilidad cuando la biblioteca contiene cientos
+    de pistas minadas. \\
+
+    Edición exclusiva en SQLite &
+    Garantiza el cumplimiento estricto de la especificación, manteniendo
+    los directorios MP3 originales en modo de solo lectura. \\
+
+    Ubicación según estándar XDG &
+    Almacenar \archivo{rolas.db} en \archivo{LocalApplicationData} y
+    consultar \archivo{SpecialFolder.MyMusic} integra la aplicación de
+    forma limpia en entornos Linux. \\
+
+    \bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Modelo relacional y esquema de la base de datos}
+
+La base de datos sigue exactamente el esquema relacional de siete tablas
+establecido en la especificación (\archivo{rolas.sql}). La tabla
+\archivo{types} actúa como catálogo fijo para distinguir si un
+intérprete registrado en \archivo{performers} corresponde a una persona
+individual (\archivo{0}), a una agrupación musical (\archivo{1}) o a un
+intérprete aún sin clasificar (\archivo{2}, valor asignado por defecto
+cuando \archivo{Steve} descubre un artista nuevo durante el minado).
+
+Por su parte, las tablas \archivo{persons} y \archivo{groups} almacenan
+los atributos propios de cada tipo de intérprete: nombre artístico,
+nombre real y fechas de nacimiento o fallecimiento para los individuos; y
+nombre de la banda junto con sus fechas de inicio y separación para los
+grupos. La relación muchos a muchos entre músicos y agrupaciones se
+materializa mediante la tabla intermedia \archivo{in_group}, cuya llave
+primaria compuesta \archivo{(id_person, id_group)} impide registrar dos
+veces al mismo integrante dentro de una banda.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+    \node[modulo,text width=3.9cm] (types) at (-5.2,0) {
+        \textbf{types}\\
+        \underline{id\_type}, description
+    };
+
+    \node[modulo,text width=4.3cm] (perf) at (0,0) {
+        \textbf{performers}\\
+        \underline{id\_performer}, id\_type,\\
+        name
+    };
+
+    \node[modulo,text width=4.1cm] (alb) at (5.2,0) {
+        \textbf{albums}\\
+        \underline{id\_album}, path,\\
+        name, year
+    };
+
+    \node[modulo,text width=4.3cm] (pers) at (-5.2,-2.5) {
+        \textbf{persons}\\
+        \underline{id\_person}, stage\_name,\\
+        real\_name, birth\_date,\\
+        death\_date
+    };
+
+    \node[modulo,text width=4.1cm] (grp) at (0,-2.5) {
+        \textbf{groups}\\
+        \underline{id\_group}, name,\\
+        start\_date, end\_date
+    };
+
+    \node[modulo,text width=4.5cm] (rolas) at (5.2,-2.5) {
+        \textbf{rolas}\\
+        \underline{id\_rola}, id\_performer,\\
+        id\_album, path, title,\\
+        track, year, genre
+    };
+
+    \node[modulo,text width=4.3cm] (ingrp) at (-2.6,-5.0) {
+        \textbf{in\_group}\\
+        \underline{id\_person, id\_group}
+    };
+
+    \draw[flecha] (perf.west)--node[etiqueta,above]{FK}(types.east);
+    \draw[flecha] (rolas.north west)--node[etiqueta,above]{FK}(perf.south east);
+    \draw[flecha] (rolas.north)--node[etiqueta,right]{FK}(alb.south);
+    \draw[flecha] (ingrp.north west)--node[etiqueta,left]{FK}(pers.south);
+    \draw[flecha] (ingrp.north east)--node[etiqueta,right]{FK}(grp.south);
+\end{tikzpicture}
+\caption{Esquema relacional de siete tablas implementado en SQLite.}
+\end{figure}
+
+Finalmente, \archivo{albums} guarda la ruta del directorio contenedor en
+el sistema de archivos, el título del disco y su año de publicación,
+mientras que \archivo{rolas} concentra los metadatos de cada pista
+individual junto con la ruta absoluta hacia el directorio MP3 y las llaves
+foráneas hacia \archivo{performers} y \archivo{albums}.
+
+\subsection{Tarjetas CRC como revisión del diseño}
+
+Para verificar que cada clase del sistema tuviera una responsabilidad
+acotada y evitar que los controladores o las ventanas acumularan lógica
+de acceso a datos, elaboré tarjetas CRC sobre los ocho componentes
+principales de la aplicación:
+
+\noindent
+\crc{Steve (\archivo{Steve.cs})}
+    {Recorrer directorios recursivamente, leer etiquetas ID3v2.4 y
+    marcos \archivo{APIC}, y poblar la base de datos dentro de una
+    transacción.}
+    {TagLibSharp, \archivo{ConexionBaseDatos}, \archivo{DaoInterpretes},
+    \archivo{DaoAlbumes}, \archivo{DaoRolas} y \archivo{ConstructorRola}.}
+\hfill
+\crc{ConexionBaseDatos}
+    {Mantener una única conexión activa con SQLite (Singleton), activar
+    llaves foráneas, crear tablas y coordinar transacciones ACID.}
+    {SqliteConnection, SqliteTransaction y los tres DAOs.}
+
+\vspace{7pt}
+\noindent
+\crc{DaoRolas y DaoAlbumes}
+    {Insertar, consultar y actualizar pistas y álbumes evitando
+    duplicados por ruta en disco.}
+    {\archivo{ConexionBaseDatos}, \archivo{Rola} y \archivo{Album}.}
+\hfill
+\crc{DaoInterpretes}
+    {Registrar intérpretes, clasificarlos como Persona o Grupo,
+    administrar individuos sin pistas y gestionar \archivo{in_group}.}
+    {\archivo{ConexionBaseDatos}, \archivo{Interprete}, \archivo{Persona}
+    y \archivo{Grupo}.}
+
+\vspace{7pt}
+\noindent
+\crc{ControladorRolas}
+    {Ejecutar el minado en hilo secundario con reporte de progreso,
+    filtrar rolas por prefijos y actualizar pistas y álbumes en SQLite.}
+    {\archivo{Steve}, \archivo{DaoRolas}, \archivo{DaoAlbumes},
+    \archivo{DaoInterpretes} y \archivo{MainWindow}.}
+\hfill
+\crc{ControladorInterpretes}
+    {Coordinar el cambio de tipo de intérprete, el registro de
+    individuos independientes y la asignación de integrantes a bandas.}
+    {\archivo{DaoInterpretes} y \archivo{VentanaInterpretes}.}
+
+\vspace{7pt}
+\noindent
+\crc{MainWindow}
+    {Mostrar la tabla de rolas, filtrar en tiempo real, abrir el
+    selector nativo de carpetas y desplegar portada y foto del artista.}
+    {\archivo{ControladorRolas}, \archivo{VentanaInterpretes} y
+    Avalonia UI.}
+\hfill
+\crc{VentanaInterpretes}
+    {Permitir clasificar intérpretes, editar datos de personas y grupos,
+    dar de alta músicos sin pistas y gestionar miembros de bandas.}
+    {\archivo{ControladorInterpretes} y Avalonia UI.}
+
+\subsection{Flujo de minado asíncrono e integridad de los directorios MP3}
+
+Uno de los retos técnicos de las aplicaciones de escritorio es evitar que
+una operación intensiva de entrada/salida congele la interfaz gráfica.
+Si el minado de varios cientos de directorios MP3 se ejecutara en el hilo
+principal de Avalonia, la ventana dejaría de repintarse hasta concluir
+todo el recorrido. Para resolverlo, encapsulé la llamada a
+\archivo{Steve.Minar()} dentro de \archivo{Task.Run()} en
+\archivo{ControladorRolas.MinarAsync()} y utilicé \archivo{Progress<int>}
+para actualizar la barra de avance en la barra inferior de
+\archivo{MainWindow} de manera segura entre hilos.
+
+Asimismo, realizar una escritura individual en SQLite por cada directorio MP3
+degradaba el rendimiento debido al costo de sincronización en disco por
+cada sentencia \archivo{INSERT}. Al envolver el ciclo completo de
+\archivo{ProcesarMp3()} dentro de \archivo{IniciarTransaccion()} y
+\archivo{ConfirmarTransaccion()}, todas las inserciones se confirman en
+una sola operación atómica, reduciendo drásticamente el tiempo de
+escaneo y asegurando que, ante cualquier fallo inesperado, la base de
+datos pueda revertirse sin quedar a medias.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+\foreach \x/\nombre in {
+    0/MainWindow,
+    3.6/ControladorRolas,
+    7.2/Steve,
+    10.8/DAOs,
+    14.2/SQLite
+}{
+    \node[
+        font=\small\bfseries,
+        align=center
+    ] at (\x,0) {\nombre};
+
+    \draw[dashed,gray] (\x,-.3)--(\x,-4.5);
+}
+
+\draw[flecha]
+    (0,-.7)--node[etiqueta,above]
+    {MinarAsync(ruta)}(3.6,-.7);
+
+\draw[flecha]
+    (3.6,-1.3)--node[etiqueta,above]
+    {Task.Run(Minar)}(7.2,-1.3);
+
+\draw[flecha]
+    (7.2,-1.9)--node[etiqueta,above]
+    {BEGIN TRANSACTION}(14.2,-1.9);
+
+\draw[flecha]
+    (7.2,-2.6)--node[etiqueta,above]
+    {ObtenerOCrear / Guardar}(10.8,-2.6);
+
+\draw[flecha]
+    (7.2,-3.2)--node[etiqueta,above]
+    {Progress(porcentaje)}(0,-3.2);
+
+\draw[flecha]
+    (7.2,-3.9)--node[etiqueta,above]
+    {COMMIT}(14.2,-3.9);
+\end{tikzpicture}
+\caption{Secuencia del minado asíncrono con reporte de progreso y transacción única en SQLite.}
+\end{figure}
+
+Respecto a la integridad de los directorios originales, \archivo{Steve} abre
+cada directorio MP3 únicamente en modo lectura mediante
+\archivo{TagLib.File.Create()} para extraer sus etiquetas e imágenes
+\archivo{APIC}. Cuando el usuario edita el título, el intérprete, el
+álbum o el año desde \archivo{MainWindow}, \archivo{ControladorRolas}
+actualiza exclusivamente los registros correspondientes en las tablas
+\archivo{rolas}, \archivo{albums} y \archivo{performers}, dejando intacto
+el directorio físico en el sistema de archivos.
+
+\section{Implementación}
+
+\subsection{Capa de persistencia, transacciones y patrones de diseño}
+
+En la capa de persistencia implementé \archivo{ConexionBaseDatos}
+aplicando el patrón \textit{Singleton} con inicialización perezosa
+(\archivo{Lazy<ConexionBaseDatos>}), lo que garantiza que todos los DAOs
+compartan exactamente la misma conexión abierta y participen en la misma
+transacción activa cuando \archivo{Steve} realiza un escaneo masivo. Al
+abrir la conexión, el constructor ejecuta \archivo{PRAGMA foreign_keys = ON;}
+para que SQLite haga cumplir la integridad referencial definida en el
+esquema y verifica en \archivo{sqlite_master} si las tablas ya existen;
+en caso contrario, ejecuta el script de creación automáticamente.
+
+Para evitar duplicados al minar varias veces una misma carpeta,
+\archivo{DaoRolas.GuardarRola()} consulta primero si ya existe una fila
+con la misma ruta absoluta (\archivo{path}); si existe, actualiza sus
+campos en lugar de insertar un registro repetido. De manera análoga,
+\archivo{DaoAlbumes.ObtenerOCrearAlbum()} identifica cada álbum por el
+par \archivo{(path, name)}, infiriendo como ruta del álbum el directorio
+padre que contiene los directorios MP3 de esa pista.
+
+En la construcción de entidades apliqué el patrón \textit{Builder} a
+través de la clase \archivo{ConstructorRola} dentro de \archivo{Rola.cs}.
+Este constructor fluido valida que ninguna pista se instancie sin una
+ruta de directorio válida y normaliza los campos vacíos o nulos al valor por
+omisión \archivo{"Unknown"}, manteniendo el código de \archivo{Steve}
+limpio y expresivo.
+
+\subsection{Minado de etiquetas ID3v2.4 e imágenes APIC con Steve}
+
+El recorrido de directorios se realiza mediante
+\archivo{Directory.EnumerateFiles()} configurado con
+\archivo{EnumerationOptions}, activando la búsqueda recursiva, la
+insensibilidad a mayúsculas y minúsculas para localizar tanto \archivo{.mp3}
+como \archivo{.MP3}, y la opción \archivo{IgnoreInaccessible = true} para
+evitar que el escaneo se interrumpa si encuentra subcarpetas protegidas
+por permisos del sistema operativo.
+
+Para cada directorio encontrado, \archivo{Steve} lee las seis etiquetas
+ID3v2.4 solicitadas en la especificación mediante TagLibSharp:
+\archivo{FirstPerformer} (\archivo{TPE1}), \archivo{Album} (\archivo{TALB}),
+\archivo{Title} (\archivo{TIT2}), \archivo{FirstGenre} (\archivo{TCON}),
+\archivo{Track} (\archivo{TRCK}) y \archivo{Year} (\archivo{TDRC})
+\cite{taglib,id3v24}. Si alguna cabecera está dañada o el directorio no es
+un MP3 válido, los bloques \archivo{catch} específicos para
+\archivo{CorruptFileException} y \archivo{UnsupportedFormatException}
+descartan esa pista sin abortar el resto del lote.
+
+Además de los metadatos textuales, incorporé en \archivo{Steve} dos
+métodos de lectura binaria sobre el arreglo \archivo{mp3.Tag.Pictures}:
+\archivo{ObtenerPortada()}, que prioriza el marco \archivo{APIC} de tipo
+\archivo{FrontCover}, y \archivo{ObtenerFotoArtista()}, que busca marcos
+de tipo \archivo{Artist} o \archivo{LeadArtist}. Los bytes extraídos se
+convierten en memoria a objetos \archivo{Bitmap} de Avalonia cada vez que
+el usuario selecciona una pista en la tabla.
+
+\subsection{Interfaz gráfica en Avalonia UI y gestión de intérpretes y bandas}
+
+La ventana principal (\archivo{MainWindow}) está organizada en tres zonas:
+una barra superior con la caja de búsqueda y los botones de acción, un
+panel central dividido entre la tabla de rolas y el editor lateral, y
+una barra inferior con mensajes de estado y una barra de progreso. En la
+barra superior integré un botón para minar directamente el directorio
+musical del usuario (\archivo{Steve.ObtenerRutaMusica()}) y otro botón
+(\archivo{Elegir Directorio...}) que abre el diálogo nativo del escritorio
+mediante \archivo{StorageProvider.OpenFolderPickerAsync()} para analizar
+cualquier carpeta del sistema.
+
+Para resolver el requerimiento de clasificar intérpretes, editar sus
+detalles, dar de alta individuos sin pistas y gestionar miembros de
+bandas, implementé \archivo{VentanaInterpretes} respaldada por
+\archivo{ControladorInterpretes}. Esta ventana secundaria presenta a la
+izquierda el listado de todos los intérpretes registrados en
+\archivo{performers}; al seleccionar uno, el usuario puede definir
+mediante un \archivo{ComboBox} si se trata de una \textbf{Persona} o un
+\textbf{Grupo}. Al elegir \textbf{Persona}, se habilitan los campos para
+editar su nombre artístico, nombre real y fechas de nacimiento y
+fallecimiento en \archivo{persons}. Al elegir \textbf{Grupo}, se despliegan
+los campos de la banda en \archivo{groups} junto con un selector de
+personas registradas para agregar o retirar integrantes en
+\archivo{in_group}. Finalmente, un tercer bloque en la misma ventana
+permite dar de alta individuos directamente en \archivo{persons} aunque no
+interpreten ninguna pista en el catálogo.
+
+En cuanto a la automatización de compilación, organicé todas las tareas en
+un único \archivo{Makefile} donde \archivo{make compilar} y
+\archivo{make ejecutar} operan exclusivamente sobre la solución de .NET,
+mientras que \archivo{make ejecutar reporte} compila este documento con
+\archivo{pdflatex} dentro de \archivo{docs/} y abre el PDF resultante de
+forma independiente.
+
+\section{Conclusiones}
+
+A través del desarrollo de \textbf{RolasApp} logré integrar el diseño de
+una base de datos relacional normalizada con una interfaz gráfica de
+escritorio funcional, aplicando patrones como \textit{Singleton},
+\textit{Builder} y DAO dentro de una arquitectura MVC. Comprobar cómo los
+datos extraídos automáticamente de directorios binarios MP3 poblaban las
+tablas de SQLite y se reflejaban al instante en la interfaz confirmó la
+importancia de separar claramente la lógica de acceso a datos de la
+presentación visual.
+
+\subsection{Dificultades y correcciones durante el desarrollo}
+
+Durante la implementación surgieron varios errores concretos que me
+obligaron a revisar tanto el diseño como los detalles técnicos del código:
+
+\begin{itemize}
+    \item \textbf{Escritura accidental sobre los directorios MP3:} En una
+    primera versión implementé un método \archivo{ActualizarEtiquetasMp3}
+    en \archivo{Steve} que invocaba \archivo{mp3.Save()} al editar una
+    pista. Al releer la especificación y notar que los directorios MP3 no
+    debían modificarse bajo ninguna circunstancia, eliminé por completo
+    dicho método y restringí las actualizaciones a SQLite.
+    \item \textbf{Duplicación de registros al editar nombres en los DAOs:}
+    En \archivo{DaoInterpretes}, los métodos \archivo{GuardarPersona} y
+    \archivo{GuardarGrupo} buscaban inicialmente registros previos solo
+    por nombre. Cuando el usuario corregía el nombre artístico de una
+    persona o el nombre de una banda existente, el DAO insertaba un
+    registro nuevo en lugar de actualizar el actual. Lo corregí
+    priorizando la búsqueda por llave primaria (\archivo{IdPersona} e
+    \archivo{IdGrupo}) antes de consultar por nombre.
+    \item \textbf{Errores de sintaxis en XAML y enlace de eventos:} Al
+    ajustar los estilos de \archivo{ListBox} en \archivo{MainWindow.axaml},
+    olvidé cerrar las etiquetas \archivo{</Grid>} y \archivo{</Border>}
+    del panel izquierdo y referencié manejadores de eventos que aún no
+    existían en el directorio \archivo{.axaml.cs}, provocando errores de
+    compilación \archivo{AVLN1001} y \archivo{AVLN3000}.
+    \item \textbf{Sincronización de espacios de nombres al reorganizar las vistas:}
+    Al mover \archivo{MainWindow} hacia la carpeta \archivo{Vista/}, fue
+    necesario actualizar el atributo \archivo{x:Class} en los directorios
+    XAML e importar \archivo{RolasApp.Vista} en \archivo{App.axaml.cs}
+    para que el punto de entrada de Avalonia localizara la ventana
+    principal.
+\end{itemize}
+
+\subsection{Cosas a mejorar}
+
+Aunque la versión entregada cumple con todos los requerimientos
+obligatorios y ofrece una experiencia fluida, identifiqué tres mejoras
+que sería valioso incorporar en una iteración posterior:
+
+\begin{itemize}
+    \item \textbf{Reproductor de audio integrado:} Incorporar el
+    controlador \archivo{C. Reproductor} planteado en el diseño original
+    utilizando una biblioteca multiplataforma de audio para escuchar las
+    pistas directamente desde la ventana principal sin depender de un
+    reproductor externo del sistema.
+    \item \textbf{Consultas booleanas avanzadas:} Extender el buscador
+    actual para soportar operadores lógicos (\archivo{AND}, \archivo{OR},
+    rangos de años como \archivo{año:1970..1980}) mediante un pequeño
+    analizador sintáctico, retomando la idea original del módulo
+    \archivo{Compilador} pero de forma acotada.
+    \item \textbf{Pruebas unitarias:} Añadir un proyecto de
+    pruebas con xUnit dentro de la solución para verificar de manera
+    automática las transacciones de los DAOs, el filtrado por prefijos y
+    la extracción de etiquetas de \archivo{Steve} ante directorios corruptos o
+    con metadatos incompletos.
+\end{itemize}
+
+\begingroup
+\small
+
+\begin{thebibliography}{9}
+
+\bibitem{avalonia}
+Avalonia UI Team.
+\textit{Avalonia UI Documentation: Controls, Styling and StorageProvider}.
+\url{https://docs.avaloniaui.net/}.
+
+\bibitem{sqlite-ms}
+Microsoft.
+\textit{Información general de Microsoft.Data.Sqlite y transacciones}.
+Microsoft Learn.
+\url{https://learn.microsoft.com/es-es/dotnet/standard/data/sqlite/}.
+
+\bibitem{taglib}
+Mono Project / TagLibSharp Contributors.
+\textit{TagLib\# (TagLibSharp) Library Documentation}.
+Repositorio oficial en GitHub.
+\url{https://github.com/mono/taglib-sharp}.
+
+\bibitem{id3v24}
+Martin Nilsson.
+\textit{ID3 tag version 2.4.0 - Native Frames}.
+Especificación formal de marcos ID3v2.4 (\archivo{TPE1}, \archivo{TALB}, \archivo{TIT2}, \archivo{TCON}, \archivo{TRCK}, \archivo{TDRC}, \archivo{APIC}).
+\url{https://id3.org/id3v2.4.0-frames}.
+
+\bibitem{xdg}
+Waldo Bastian, Ryan Lortie y Lennart Poettering.
+\textit{XDG Base Directory Specification}.
+freedesktop.org.
+\url{https://specifications.freedesktop.org/basedir-spec/latest/}.
+
+\bibitem{notas-myp}
+Kimberly Becerril Fuentes y Canek Peláez Valdés.
+\textit{Notas para el curso de Modelado y Programación}.
+Facultad de Ciencias, Universidad Nacional Autónoma de México, 2019.
+
+\end{thebibliography}
+
+\endgroup
+\end{document}

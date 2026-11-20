@@ -66,7 +66,7 @@ public class ControladorRolas
     public List<Rola> ObtenerRolasPorInterprete(int idInterprete) =>
         _daoRolas.ObtenerPorInterprete(idInterprete);
 
-    // Filtra la coleccion de rolas por texto libre o por prefijos.
+    // Filtra la coleccion de rolas por texto libre o por prefijos sin escribir SQL.
     public List<Rola> BuscarRolas(string? consulta)
     {
         List<Rola> todas = _daoRolas.ObtenerTodas();
@@ -99,10 +99,10 @@ public class ControladorRolas
 
         string rutaPadre = Path.GetDirectoryName(rola.Ruta) ?? string.Empty;
 
-        // Asegura que el interprete exista en performers y asignamos su llave foranea.
+        // Aseguramos que el interprete exista en performers y asignamos su llave foranea.
         rola.IdInterprete = _daoInterpretes.ObtenerOCrearInterprete(rola.NombreInterprete);
 
-        // Obtiene o crea el album y sincronizamos su anio en la tabla albums.
+        // Obtenemos o creamos el album y sincronizamos su anio en la tabla albums.
         rola.IdAlbum = _daoAlbumes.ObtenerOCrearAlbum(rutaPadre, rola.NombreAlbum, rola.Anio);
         Album? albumActual = _daoAlbumes.ObtenerPorId(rola.IdAlbum);
         if (albumActual != null && albumActual.Anio != rola.Anio)
@@ -111,7 +111,7 @@ public class ControladorRolas
             _daoAlbumes.ActualizarAlbum(albumActual);
         }
 
-        // Guarda los cambios en la tabla rolas de SQLite.
+        // Guardamos los cambios en la tabla rolas de SQLite.
         _daoRolas.ActualizarRola(rola);
         return true;
     }
@@ -153,11 +153,11 @@ public class ControladorRolas
 
             return prefijo switch
             {
-                "titulo" or "title" => Contiene(rola.Titulo, valor),
-                "interprete" or "artista" or "artist" => Contiene(rola.NombreInterprete, valor),
-                "album" => Contiene(rola.NombreAlbum, valor),
-                "genero" or "genre" => Contiene(rola.Genero, valor),
-                "anio" or "year" => Contiene(rola.Anio.ToString(), valor),
+                "titulo" or "título" or "title" => Contiene(rola.Titulo, valor),
+                "interprete" or "intérprete" or "artista" or "artist" => Contiene(rola.NombreInterprete, valor),
+                "album" or "álbum" => Contiene(rola.NombreAlbum, valor),
+                "genero" or "género" or "genre" => Contiene(rola.Genero, valor),
+                "año" or "anio" or "year" => Contiene(rola.Anio.ToString(), valor),
                 _ => CoincideTextoLibre(rola, termino),
             };
         }
