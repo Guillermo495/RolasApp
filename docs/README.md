@@ -10,6 +10,38 @@
 
 - Tener instalado **.NET 10** en tu sistema.
 - Tener instalado `make` y `sqlite3` (opcional, solo si deseas reiniciar la base de datos manualmente).
+- Contar con el paquete **LibVLCSharp** y la biblioteca nativa **`libvlc`** instalada en el sistema para habilitar el reproductor de audio integrado.
+
+### Instalación de dependencias de audio (LibVLCSharp)
+
+El paquete de .NET (`LibVLCSharp`) se restaura automáticamente al compilar; si necesitas agregarlo manualmente al proyecto, ejecuta:
+
+```bash
+dotnet add src/RolasApp/RolasApp.csproj package LibVLCSharp
+```
+
+Además, instala la biblioteca nativa `libvlc` según tu distribución Linux:
+
+- **Debian / Ubuntu / Linux Mint:**
+
+  ```bash
+  sudo apt update
+  sudo apt install vlc libvlc-dev
+  ```
+
+- **Fedora:**
+
+  ```bash
+  sudo dnf install vlc
+  ```
+
+- **Arch Linux / derivados:**
+
+  ```bash
+  sudo pacman -S vlc
+  ```
+
+> Si `libvlc` no está instalado en el sistema, la aplicación abrirá con normalidad y únicamente mantendrá deshabilitados los controles de reproducción.
 
 ### Pasos desde la terminal
 
@@ -43,6 +75,7 @@ Antes de compilar el PDF por primera vez, instala `pdflatex` y los paquetes requ
   ```
 
 - **Fedora:**
+
   ```bash
   sudo dnf install texlive-scheme-basic texlive-collection-latexrecommended texlive-collection-fontsrecommended texlive-collection-pictures texlive-babel-spanish texlive-pgf
   ```

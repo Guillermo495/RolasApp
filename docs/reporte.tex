@@ -87,20 +87,22 @@
 
 Desarrollé \textbf{RolasApp}, una aplicación de escritorio para construir y
 administrar una base de datos musical a partir de directorios MP3 con
-etiquetas ID3v2.4, utilizando C\# (\archivo{net10.0}), Avalonia UI, SQLite
-y TagLibSharp. El proyecto tuvo como propósito integrar el modelado
-relacional con una interfaz gráfica multiplataforma siguiendo la
+etiquetas ID3v2.4, utilizando C\# (\archivo{net10.0}), Avalonia UI, SQLite,
+TagLibSharp y LibVLCSharp. El proyecto tuvo como propósito integrar el
+modelado relacional con una interfaz gráfica multiplataforma siguiendo la
 arquitectura Modelo--Vista--Controlador (MVC). La principal dificultad
 de diseño consistió en equilibrar el modelado inicial pensado en cuaderno
 con una estructura práctica y mantenible, evitando capas redundantes y
 garantizando que ninguna modificación alterara los directorios MP3 físicos
 en disco. Para resolverlo, separé la persistencia en tres objetos de
 acceso a datos (DAO), encapsulé el escaneo recursivo y la lectura de
-metadatos en un minero dedicado (\archivo{Steve}) y dividí la interfaz en
-dos ventanas especializadas. Como resultado, la aplicación mina colecciones
-completas en segundo plano, muestra portadas y fotografías de artistas
-incrustadas, permite filtrar pistas y gestiona tanto solistas como bandas
-musicales con sus respectivos integrantes.
+metadatos en un minero dedicado (\archivo{Steve}), aislé la reproducción
+de audio en un controlador propio (\archivo{ControladorReproductor}) y
+dividí la interfaz en dos ventanas especializadas. Como resultado, la
+aplicación mina colecciones completas en segundo plano, muestra portadas y
+fotografías de artistas incrustadas, reproduce las pistas MP3 directamente
+desde la interfaz, permite filtrar el catálogo y gestiona tanto solistas
+como bandas musicales con sus respectivos integrantes.
 
 \section{Introducción}
 
@@ -112,27 +114,32 @@ A diferencia del primer proyecto, donde trabajé con sockets en C y un
 cliente de consola en C\#, en esta ocasión me enfoqué por completo en el
 ecosistema de .NET sobre Linux, incorporando bibliotecas externas para
 el acceso a bases de datos embebidas, la lectura de cabeceras binarias
-ID3v2.4 y la construcción de ventanas gráficas nativas.
+ID3v2.4, la reproducción de audio mediante \archivo{libvlc} y la
+construcción de ventanas gráficas nativas.
 
 Aunque ya contaba con experiencia previa trabajando con C\# en consola,
 desarrollar una aplicación con interfaz gráfica en Avalonia UI implicó
 aprender el enlace de datos (\textit{data binding}), la separación entre
 la definición declarativa en XAML y la lógica de eventos en C\#, así como
 la ejecución de tareas pesadas en hilos secundarios para evitar que la
-ventana dejara de responder durante el escaneo de directorios grandes.
-Asimismo, tuve que respetar los lineamientos del estándar XDG de Linux
-para ubicar la base de datos en \archivo{~/.local/share/RolasApp/rolas.db}
-y resolver la ruta predeterminada de música del usuario sin depender de
-nombres de carpetas fijos.
+ventana dejara de responder durante el escaneo de directorios grandes o
+al recibir eventos asíncronos del motor de audio. Asimismo, tuve que
+respetar los lineamientos del estándar XDG de Linux para ubicar la base
+de datos en \archivo{~/.local/share/RolasApp/rolas.db} y resolver la ruta
+predeterminada de música del usuario sin depender de nombres de carpetas
+fijos.
 
 La documentación técnica fue un apoyo constante durante todo el proceso.
 Consulté la documentación oficial de Avalonia UI para configurar estilos
-de listas, selectores nativos de carpetas mediante \archivo{StorageProvider}
-y ventanas modales; la guía de \archivo{Microsoft.Data.Sqlite} para
-manejar conexiones, consultas parametrizadas y transacciones ACID; los
-ejemplos de TagLibSharp para extraer etiquetas ID3v2.4 y marcos gráficos
-\archivo{APIC}; y la especificación oficial de ID3v2.4 para verificar el
-significado de cada identificador de trama \cite{avalonia,sqlite-ms,taglib,id3v24}.
+de listas, íconos vectoriales (\archivo{PathIcon}), selectores nativos de
+carpetas mediante \archivo{StorageProvider} y ventanas modales; la guía de
+\archivo{Microsoft.Data.Sqlite} para manejar conexiones, consultas
+parametrizadas y transacciones ACID; los ejemplos de TagLibSharp para
+extraer etiquetas ID3v2.4 y marcos gráficos \archivo{APIC}; la
+documentación de LibVLCSharp para controlar el ciclo de vida de
+\archivo{LibVLC} y \archivo{MediaPlayer}; y la especificación oficial de
+ID3v2.4 para verificar el significado de cada identificador de trama
+\cite{avalonia,sqlite-ms,taglib,libvlcsharp,id3v24}.
 
 Al comenzar el desarrollo, cometí el error de implementar escritura de
 regreso sobre las etiquetas de los directorios MP3 cada vez que el usuario
@@ -140,9 +147,9 @@ guardaba un cambio en la interfaz. Al revisar con detenimiento los
 requerimientos del proyecto, me di cuenta que los directorios MP3 debían
 permanecer estrictamente intactos y que toda edición debía ocurrir
 únicamente dentro de SQLite. Arreglar esto, junto con acomodar mejor
-las ventanas y completar el manejo de personas y bandas, fue lo que hizo
-que el proyecto pasara de ser un primer avance funcional a cumplir bien
-con lo que pedía la entrega.
+las ventanas, completar el manejo de personas y bandas e integrar el
+reproductor de audio, fue lo que hizo que el proyecto pasara de ser un
+primer avance funcional a cumplir bien con lo que pedía la entrega.
 
 \section{Análisis y diseño}
 
@@ -151,21 +158,19 @@ con lo que pedía la entrega.
 Antes de escribir código, tracé en cuaderno un diagrama general de
 clases y paquetes dividido en tres columnas: \archivo{Vista},
 \archivo{Modelo} y \archivo{Controlador}. En ese diseño inicial había
-contemplado cuatro elementos que después decidí replantear: una carpeta
-intermedia \archivo{Vista/Contratos} con interfaces para desacoplar
-Avalonia de los controladores, un subdirectorio \archivo{Modelo/Compilador}
-destinado a realizar análisis léxico y semántico de consultas para
-traducirlas a SQL, y un tercer controlador llamado \archivo{C. Reproductor}
-para la reproducción de audio.
+contemplado tres elementos adicionales que evalué durante la
+implementación: una carpeta intermedia \archivo{Vista/Contratos} con
+interfaces para desacoplar Avalonia de los controladores, un subdirectorio
+\archivo{Modelo/Compilador} destinado a realizar análisis léxico y
+semántico de consultas para traducirlas a SQL, y un tercer controlador
+llamado \archivo{C. Reproductor} para la reproducción de audio.
 
 Cuando comencé a trasladar ese diagrama al repositorio de .NET, creé las
 carpetas vacías \archivo{Vista/Contratos} y \archivo{Modelo/Compilador}
 mientras avanzaba primero con las entidades, la conexión a SQLite y el
 minero. Pronto noté que mantener carpetas vacías y diseñar un analizador
 léxico propio para búsquedas sencillas y sobre todo interfaces de contrato
-para solo dos ventanas añadía complejidad al proyecto y no podria concluirlo
-en tiempo y forma. Además, tanto el compilador de consultas como el reproductor
-eran componentes opcionales en la especificación.
+para solo dos ventanas añadía complejidad innecesaria al proyecto.
 
 \begin{figure}[htbp]
 \centering
@@ -181,7 +186,7 @@ eran componentes opcionales en la especificación.
         \textbf{Controlador}\\
         Cont. Principal\\
         C. Intérpretes\\
-        \textit{C. Reproductor (opcional)}
+        C. Reproductor
     };
 
     \node[modulo,text width=4.4cm] (mod) at (4.9,0) {
@@ -197,13 +202,15 @@ eran componentes opcionales en la especificación.
 \caption{Planteamiento inicial de la arquitectura antes de depurar módulos opcionales y contratos.}
 \end{figure}
 
-Decidí entonces simplificar el diseño, eliminé las carpetas vacías,
-sustituí el compilador léxico por un motor de filtrado en memoria
+Decidí entonces simplificar el diseño eliminando las carpetas vacías y
+sustituyendo el compilador léxico por un motor de filtrado en memoria
 dentro de \archivo{ControladorRolas} capaz de interpretar prefijos
 como \archivo{artista:}, \archivo{album:} o \archivo{año:} sin que
-el usuario escriba SQL, y concentré el esfuerzo en las dos partes
-centrales del sistema: el catálogo de pistas y la administración
-de intérpretes, individuos y bandas.
+el usuario escriba SQL. Una vez consolidados el catálogo de pistas y la
+administración de intérpretes, retomé en una rama independiente
+(\archivo{feature/reproductor}) el tercer controlador del diseño original,
+implementándolo como \archivo{ControladorReproductor} apoyado en la
+biblioteca de código abierto LibVLCSharp.
 
 \subsection{Organización final del proyecto}
 
@@ -213,18 +220,19 @@ proyecto quedó dividida de forma simétrica en tres capas bien
 delimitadas. La capa de \archivo{Vista} contiene exclusivamente las
 definiciones XAML y el código subyacente de
 \archivo{MainWindow} y \archivo{VentanaInterpretes}. La capa de
-\archivo{Controlador} agrupa a \archivo{ControladorRolas} y
-\archivo{ControladorInterpretes}, encargados de coordinar las
-validaciones, las búsquedas y las llamadas a la persistencia. Finalmente,
-la capa de \archivo{Modelo} reúne las entidades del dominio, los tres
-DAO sobre \archivo{ConexionBaseDatos} y el minero \archivo{Steve}.
+\archivo{Controlador} agrupa a \archivo{ControladorRolas},
+\archivo{ControladorInterpretes} y \archivo{ControladorReproductor},
+encargados de coordinar las validaciones, las búsquedas, la reproducción
+de audio y las llamadas a la persistencia. Finalmente, la capa de
+\archivo{Modelo} reúne las entidades del dominio, los tres DAO sobre
+\archivo{ConexionBaseDatos} y el minero \archivo{Steve}.
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
     \node[modulo,text width=5.2cm] (mw) at (-3.4,0) {
         \textbf{«vista» MainWindow}\\
-        Catálogo, buscador y edición en BD
+        Catálogo, buscador, edición y barra de reproducción
     };
 
     \node[modulo,text width=5.2cm] (vi) at (3.4,0) {
@@ -232,39 +240,45 @@ DAO sobre \archivo{ConexionBaseDatos} y el minero \archivo{Steve}.
         Personas, bandas y miembros
     };
 
-    \node[modulo,text width=5.2cm] (cr) at (-3.4,-2.2) {
+    \node[modulo,text width=4.2cm] (cr) at (-4.9,-2.3) {
         \textbf{«controlador» ControladorRolas}\\
         Minado asíncrono, filtrado y CRUD
     };
 
-    \node[modulo,text width=5.2cm] (ci) at (3.4,-2.2) {
+    \node[modulo,text width=4.2cm] (crep) at (0,-2.3) {
+        \textbf{«controlador» ControladorReproductor}\\
+        Reproducción MP3 (LibVLCSharp)
+    };
+
+    \node[modulo,text width=4.2cm] (ci) at (4.9,-2.3) {
         \textbf{«controlador» ControladorInterpretes}\\
         Clasificación y relación \archivo{in_group}
     };
 
-    \node[modulo,text width=4.0cm] (st) at (-4.8,-4.5) {
+    \node[modulo,text width=4.0cm] (st) at (-4.8,-4.6) {
         \textbf{«minero» Steve}\\
         TagLibSharp (ID3v2.4 / APIC)
     };
 
-    \node[modulo,text width=4.2cm] (daos) at (0,-4.5) {
+    \node[modulo,text width=4.2cm] (daos) at (0,-4.6) {
         \textbf{«persistencia» DAOs}\\
         \archivo{DaoRolas}, \archivo{DaoAlbumes},\\
         \archivo{DaoInterpretes}
     };
 
-    \node[modulo,text width=4.0cm] (ent) at (4.8,-4.5) {
+    \node[modulo,text width=4.0cm] (ent) at (4.8,-4.6) {
         \textbf{«modelo» Entidades}\\
         \archivo{Rola}, \archivo{Album}, \archivo{Interprete},\\
         \archivo{Persona}, \archivo{Grupo}
     };
 
-    \node[modulo,text width=6.4cm] (bd) at (0,-6.7) {
+    \node[modulo,text width=6.4cm] (bd) at (0,-6.8) {
         \textbf{«singleton» ConexionBaseDatos / SQLite}\\
         \archivo{~/.local/share/RolasApp/rolas.db}
     };
 
     \draw[flecha] (mw)--(cr);
+    \draw[flecha] (mw)--(crep);
     \draw[flecha] (mw)--node[etiqueta,above]{abre diálogo}(vi);
     \draw[flecha] (vi)--(ci);
     \draw[flecha] (cr)--(st);
@@ -296,6 +310,12 @@ tomé durante el desarrollo y la justificación de cada una:
     Permite combinar filtros como \archivo{artista:Queen año:1975} o
     texto libre en tiempo real sin necesidad de construir un analizador
     léxico ni exponer SQL al usuario. \\
+
+    Reproductor con LibVLCSharp y degradación elegante &
+    Encapsular \archivo{LibVLC} en \archivo{ControladorReproductor}
+    permite reproducir pistas MP3 sin escribir un decodificador propio; si
+    \archivo{libvlc} no está instalado en el equipo evaluador, el
+    controlador deshabilita los botones en lugar de cerrar la aplicación. \\
 
     Tabla de catálogo estilo Finder &
     El uso de filas alternadas (\textit{zebra striping}) y columnas
@@ -398,7 +418,7 @@ foráneas hacia \archivo{performers} y \archivo{albums}.
 
 Para verificar que cada clase del sistema tuviera una responsabilidad
 acotada y evitar que los controladores o las ventanas acumularan lógica
-de acceso a datos, elaboré tarjetas CRC sobre los ocho componentes
+de acceso a datos, elaboré tarjetas CRC sobre los nueve componentes
 principales de la aplicación:
 
 \noindent
@@ -442,12 +462,20 @@ principales de la aplicación:
 
 \vspace{7pt}
 \noindent
-\crc{MainWindow}
-    {Mostrar la tabla de rolas, filtrar en tiempo real, abrir el
-    selector nativo de carpetas y desplegar portada y foto del artista.}
-    {\archivo{ControladorRolas}, \archivo{VentanaInterpretes} y
-    Avalonia UI.}
+\crc{ControladorReproductor}
+    {Inicializar LibVLC en modo solo audio, reproducir, pausar, detener,
+    regular volumen, notificar cambios de estado y liberar recursos nativos.}
+    {LibVLCSharp, \archivo{Rola} y \archivo{MainWindow}.}
 \hfill
+\crc{MainWindow}
+    {Mostrar la tabla de rolas, filtrar en tiempo real, abrir el selector
+    de carpetas, desplegar imágenes \archivo{APIC} y ofrecer controles de
+    reproducción.}
+    {\archivo{ControladorRolas}, \archivo{ControladorReproductor},
+    \archivo{VentanaInterpretes} y Avalonia UI.}
+
+\vspace{7pt}
+\noindent
 \crc{VentanaInterpretes}
     {Permitir clasificar intérpretes, editar datos de personas y grupos,
     dar de alta músicos sin pistas y gestionar miembros de bandas.}
@@ -522,11 +550,13 @@ datos pueda revertirse sin quedar a medias.
 Respecto a la integridad de los directorios originales, \archivo{Steve} abre
 cada directorio MP3 únicamente en modo lectura mediante
 \archivo{TagLib.File.Create()} para extraer sus etiquetas e imágenes
-\archivo{APIC}. Cuando el usuario edita el título, el intérprete, el
-álbum o el año desde \archivo{MainWindow}, \archivo{ControladorRolas}
-actualiza exclusivamente los registros correspondientes en las tablas
-\archivo{rolas}, \archivo{albums} y \archivo{performers}, dejando intacto
-el directorio físico en el sistema de archivos.
+\archivo{APIC}. De igual forma, \archivo{ControladorReproductor} solo lee
+la ruta almacenada en \archivo{Rola.Ruta} para reproducir el audio. Cuando
+el usuario edita el título, el intérprete, el álbum o el año desde
+\archivo{MainWindow}, \archivo{ControladorRolas} actualiza exclusivamente
+los registros correspondientes en las tablas \archivo{rolas},
+\archivo{albums} y \archivo{performers}, dejando intacto el directorio
+físico en el sistema de archivos.
 
 \section{Implementación}
 
@@ -585,13 +615,43 @@ de tipo \archivo{Artist} o \archivo{LeadArtist}. Los bytes extraídos se
 convierten en memoria a objetos \archivo{Bitmap} de Avalonia cada vez que
 el usuario selecciona una pista en la tabla.
 
+\subsection{Integración del reproductor de audio con LibVLCSharp}
+
+Para escuchar las pistas directamente desde el catálogo sin implementar un
+decodificador MP3 desde cero, desarrollé \archivo{ControladorReproductor}
+apoyándome en \archivo{LibVLCSharp} \cite{libvlcsharp}. La clase inicializa
+el motor nativo con el argumento \archivo{--no-video}, administra un
+\archivo{MediaPlayer} interno e implementa la interfaz \archivo{IDisposable}
+para detener el audio y liberar los recursos nativos al cerrar
+\archivo{MainWindow}.
+
+Como \archivo{LibVLCSharp} depende en Linux de la biblioteca compartida
+\archivo{libvlc} del sistema, protegí el constructor con un bloque
+\archivo{try/catch} que marca la propiedad \archivo{EstaDisponible} en
+\archivo{false} si la biblioteca no se encuentra instalada. De este modo,
+\archivo{MainWindow} deshabilita los controles de reproducción y muestra un
+aviso discreto en lugar de provocar un cierre inesperado. Además, debido a
+que los eventos de estado (\archivo{Playing}, \archivo{Paused},
+\archivo{Stopped} y \archivo{EndReached}) se disparan desde hilos internos
+de \archivo{libvlc}, todas las actualizaciones visuales en la vista se
+despachan de forma segura mediante \archivo{Dispatcher.UIThread.Post()}.
+
 \subsection{Interfaz gráfica en Avalonia UI y gestión de intérpretes y bandas}
 
-La ventana principal (\archivo{MainWindow}) está organizada en tres zonas:
-una barra superior con la caja de búsqueda y los botones de acción, un
-panel central dividido entre la tabla de rolas y el editor lateral, y
-una barra inferior con mensajes de estado y una barra de progreso. En la
-barra superior integré un botón para minar directamente el directorio
+La ventana principal (\archivo{MainWindow}) está organizada en cuatro
+zonas dispuestas verticalmente en un \archivo{Grid}: una barra superior con
+la caja de búsqueda y los botones de acción, un panel central dividido
+entre la tabla de rolas y el editor lateral, una barra de estado con el
+indicador de progreso del minado y, en la parte inferior, una barra de
+reproducción. Esta última muestra el título e intérprete de la pista
+activa, un deslizador de volumen (\archivo{Slider}) y botones con íconos
+vectoriales (\archivo{PathIcon}) para reproducir, pausar y detener, los
+cuales alternan dinámicamente su geometría y \archivo{ToolTip} según el
+estado del reproductor. Asimismo, si el usuario elimina de la base de datos
+la pista que se encuentra sonando, la vista detiene automáticamente la
+reproducción.
+
+En la barra superior integré un botón para minar directamente el directorio
 musical del usuario (\archivo{Steve.ObtenerRutaMusica()}) y otro botón
 (\archivo{Elegir Directorio...}) que abre el diálogo nativo del escritorio
 mediante \archivo{StorageProvider.OpenFolderPickerAsync()} para analizar
@@ -624,12 +684,13 @@ forma independiente.
 
 A través del desarrollo de \textbf{RolasApp} logré integrar el diseño de
 una base de datos relacional normalizada con una interfaz gráfica de
-escritorio funcional, aplicando patrones como \textit{Singleton},
-\textit{Builder} y DAO dentro de una arquitectura MVC. Comprobar cómo los
-datos extraídos automáticamente de directorios binarios MP3 poblaban las
-tablas de SQLite y se reflejaban al instante en la interfaz confirmó la
-importancia de separar claramente la lógica de acceso a datos de la
-presentación visual.
+escritorio funcional y un reproductor de audio integrado, aplicando
+patrones como \textit{Singleton}, \textit{Builder} y DAO dentro de una
+arquitectura MVC. Comprobar cómo los datos extraídos automáticamente de
+directorios binarios MP3 poblaban las tablas de SQLite, se reflejaban al
+instante en la interfaz y podían escucharse directamente desde la ventana
+principal confirmó la importancia de separar claramente la lógica de acceso
+a datos, el control de medios y la presentación visual.
 
 \subsection{Dificultades y correcciones durante el desarrollo}
 
@@ -652,11 +713,11 @@ obligaron a revisar tanto el diseño como los detalles técnicos del código:
     priorizando la búsqueda por llave primaria (\archivo{IdPersona} e
     \archivo{IdGrupo}) antes de consultar por nombre.
     \item \textbf{Errores de sintaxis en XAML y enlace de eventos:} Al
-    ajustar los estilos de \archivo{ListBox} en \archivo{MainWindow.axaml},
-    olvidé cerrar las etiquetas \archivo{</Grid>} y \archivo{</Border>}
-    del panel izquierdo y referencié manejadores de eventos que aún no
-    existían en el directorio \archivo{.axaml.cs}, provocando errores de
-    compilación \archivo{AVLN1001} y \archivo{AVLN3000}.
+    ajustar los estilos de \archivo{ListBox} y posteriormente al integrar
+    la barra del reproductor en \archivo{MainWindow.axaml}, tuve que
+    corregir etiquetas sin cerrar y ajustar la definición de filas del
+    \archivo{Grid} principal (\archivo{RowDefinitions}) para evitar que la
+    barra inferior se superpusiera con el buscador superior.
     \item \textbf{Sincronización de espacios de nombres al reorganizar las vistas:}
     Al mover \archivo{MainWindow} hacia la carpeta \archivo{Vista/}, fue
     necesario actualizar el atributo \archivo{x:Class} en los directorios
@@ -668,15 +729,15 @@ obligaron a revisar tanto el diseño como los detalles técnicos del código:
 \subsection{Cosas a mejorar}
 
 Aunque la versión entregada cumple con todos los requerimientos
-obligatorios y ofrece una experiencia fluida, identifiqué tres mejoras
+obligatorios e incorpora reproducción de audio, identifiqué tres mejoras
 que sería valioso incorporar en una iteración posterior:
 
 \begin{itemize}
-    \item \textbf{Reproductor de audio integrado:} Incorporar el
-    controlador \archivo{C. Reproductor} planteado en el diseño original
-    utilizando una biblioteca multiplataforma de audio para escuchar las
-    pistas directamente desde la ventana principal sin depender de un
-    reproductor externo del sistema.
+    \item \textbf{Controles avanzados en el reproductor:} Ampliar
+    \archivo{ControladorReproductor} y la barra inferior para incluir una
+    barra de tiempo interactiva (\textit{seek bar}), botones de pista
+    anterior/siguiente y avance automático al dispararse el evento
+    \archivo{EndReached}.
     \item \textbf{Consultas booleanas avanzadas:} Extender el buscador
     actual para soportar operadores lógicos (\archivo{AND}, \archivo{OR},
     rangos de años como \archivo{año:1970..1980}) mediante un pequeño
@@ -710,6 +771,12 @@ Mono Project / TagLibSharp Contributors.
 \textit{TagLib\# (TagLibSharp) Library Documentation}.
 Repositorio oficial en GitHub.
 \url{https://github.com/mono/taglib-sharp}.
+
+\bibitem{libvlcsharp}
+VideoLAN.
+\textit{LibVLCSharp: Cross-platform .NET/Mono bindings for LibVLC}.
+Repositorio oficial en GitLab.
+\url{https://code.videolan.org/videolan/LibVLCSharp}.
 
 \bibitem{id3v24}
 Martin Nilsson.
