@@ -8,7 +8,7 @@
         Background="#1E1E2E"
         Foreground="#CDD6F4">
 
-    <Grid RowDefinitions="Auto, *, Auto" Margin="16">
+    <Grid RowDefinitions="Auto, *, Auto, Auto" Margin="16">
 
         <!-- Buscador, gestion de interpretes y botones de minado -->
         <Grid Grid.Row="0" ColumnDefinitions="*, Auto, Auto, Auto, Auto" Margin="0,0,0,14">
@@ -281,5 +281,63 @@
                          IsVisible="False" />
         </Grid>
 
+        <!-- Barra del reproductor -->
+        <Border Grid.Row="3"
+                Margin="0,10,0,0"
+                Padding="10"
+                Background="#181825"
+                BorderBrush="#313244"
+                BorderThickness="1"
+                CornerRadius="8">
+            <Grid ColumnDefinitions="*, Auto, Auto, Auto" VerticalAlignment="Center" ColumnSpacing="10">
+                <TextBlock x:Name="TxtPistaActual"
+                           Grid.Column="0"
+                           Text="Sin reproducción"
+                           Foreground="#CDD6F4"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <Button x:Name="BtnPlayPause"
+        Grid.Column="1"
+        Width="40"
+        Height="34"
+        Padding="0"
+        Background="#89B4FA"
+        Foreground="#11111B"
+        CornerRadius="6"
+        ToolTip.Tip="Reproducir"
+        Click="BtnPlayPause_Click">
+    <PathIcon x:Name="IconoPlayPause"
+              Width="14"
+              Height="14"
+              Data="M8,5.14V19.14L19,12.14L8,5.14Z" />
+</Button>
+
+<Button x:Name="BtnDetener"
+        Grid.Column="2"
+        Width="40"
+        Height="34"
+        Padding="0"
+        Background="#45475A"
+        Foreground="#CDD6F4"
+        CornerRadius="6"
+        ToolTip.Tip="Detener"
+        Click="BtnDetener_Click">
+    <PathIcon Width="13"
+              Height="13"
+              Data="M6,6H18V18H6V6Z" />
+</Button>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <TextBlock Text="Vol:" Foreground="#A6ADC8" VerticalAlignment="Center" />
+                    <Slider x:Name="SliderVolumen"
+                            Width="100"
+                            Minimum="0"
+                            Maximum="100"
+                            Value="80"
+                            ValueChanged="SliderVolumen_ValueChanged" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

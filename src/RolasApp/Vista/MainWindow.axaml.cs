@@ -5,9 +5,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.Media;
 using RolasApp.Controlador;
 using RolasApp.Modelo.Entidades;
 using RolasApp.Modelo.Minero;
@@ -16,13 +19,34 @@ using RolasApp.Modelo.Minero;
 public partial class MainWindow : Window
 {
     private readonly ControladorRolas _controlador;
+    private readonly ControladorReproductor _reproductor;
+    private static readonly Geometry GeometriaPlay = Geometry.Parse("M8,5.14V19.14L19,12.14L8,5.14Z");
+    private static readonly Geometry GeometriaPause = Geometry.Parse("M14,19H18V5H14M6,19H10V5H6V19Z");
     private Rola? _rolaSeleccionada;
 
-    // Inicializa la ventana y carga las rolas existentes en la base de datos.
+    // Inicializa la ventana, carga las rolas existentes y configura el reproductor.
     public MainWindow()
     {
         InitializeComponent();
         _controlador = new ControladorRolas();
+        _reproductor = new ControladorReproductor();
+
+        _reproductor.EstadoCambiado += OnEstadoReproductorCambiado;
+        _reproductor.EstablecerVolumen((int)SliderVolumen.Value);
+
+        IconoPlayPause.Data = GeometriaPlay;
+
+        if (!_reproductor.EstaDisponible)
+        {
+            BtnPlayPause.IsEnabled = false;
+            BtnDetener.IsEnabled = false;
+            SliderVolumen.IsEnabled = false;
+            ToolTip.SetTip(BtnPlayPause, "Reproductor no disponible");
+            TxtPistaActual.Text = "Reproductor no disponible (falta libvlc)";
+        }
+
+        Closed += (_, _) => _reproductor.Dispose();
+
         CargarCatalogo();
     }
 
@@ -180,10 +204,70 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_reproductor.RolaActual?.IdRola == _rolaSeleccionada.IdRola)
+        {
+            _reproductor.Detener();
+        }
+
         _controlador.EliminarRola(_rolaSeleccionada.IdRola);
         LimpiarPanelDetalles();
         CargarCatalogo(CajaBusqueda.Text);
         EtiquetaEstado.Text = "Rola eliminada de la base de datos.";
+    }
+
+    // Reproduce la rola seleccionada o alterna entre pausa y reproduccion si ya es la actual.
+    private void BtnPlayPause_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_rolaSeleccionada is not null &&
+            (_reproductor.RolaActual is null || _reproductor.RolaActual.IdRola != _rolaSeleccionada.IdRola))
+        {
+            _reproductor.Reproducir(_rolaSeleccionada);
+            return;
+        }
+
+        _reproductor.AlternarPausa();
+    }
+
+    // Detiene la reproduccion actual.
+    private void BtnDetener_Click(object? sender, RoutedEventArgs e)
+    {
+        _reproductor.Detener();
+    }
+
+    // Ajusta el volumen del reproductor cuando cambia el deslizador.
+    private void SliderVolumen_ValueChanged(object? sender, RangeBaseValueChangedEventArgs e)
+    {
+        _reproductor?.EstablecerVolumen((int)e.NewValue);
+    }
+
+    // Actualiza la barra del reproductor en el hilo de UI cuando cambia el estado de LibVLC.
+    private void OnEstadoReproductorCambiado()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_reproductor.EstaReproduciendo)
+            {
+                IconoPlayPause.Data = GeometriaPause;
+                ToolTip.SetTip(BtnPlayPause, "Pausar");
+                TxtPistaActual.Text = _reproductor.RolaActual is not null
+                    ? $"Reproduciendo: {_reproductor.RolaActual.Titulo} - {_reproductor.RolaActual.NombreInterprete}"
+                    : "Reproduciendo";
+            }
+            else if (_reproductor.EstaPausado)
+            {
+                IconoPlayPause.Data = GeometriaPlay;
+                ToolTip.SetTip(BtnPlayPause, "Reanudar");
+                TxtPistaActual.Text = _reproductor.RolaActual is not null
+                    ? $"Pausado: {_reproductor.RolaActual.Titulo}"
+                    : "Pausado";
+            }
+            else
+            {
+                IconoPlayPause.Data = GeometriaPlay;
+                ToolTip.SetTip(BtnPlayPause, "Reproducir");
+                TxtPistaActual.Text = "Sin reproducción";
+            }
+        });
     }
 
     // Carga en la interfaz tanto la portada frontal como la fotografia del artista.
